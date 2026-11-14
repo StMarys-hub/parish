@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --color-parish-canvas: #FAF8F5;
+  --color-parish-card: #FFFFFF;
+  --color-parish-navy: #1E3A5F;
+  --color-parish-navy-dark: #152943;
+  --color-parish-gold: #B8860B;
+  --color-parish-gold-soft: #FEF7E0;
+  --color-parish-ink: #1E293B;
+  --color-parish-muted: #526071;
+  --color-parish-border: #E7E2DA;
+}
+
+@layer base {
+  html {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #FAF8F5;
+    color: #1E293B;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Hide scrollbars cleanly for horizontal category filter strips */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

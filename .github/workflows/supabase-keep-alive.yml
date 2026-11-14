@@ -1,0 +1,22 @@
+name: Keep Supabase Free Tier Alive
+
+on:
+  schedule:
+    # Runs every Monday and Thursday at 12:00 PM UTC (prevents 7-day inactivity pause)
+    - cron: '0 12 * * 1,4'
+  workflow_dispatch:
+
+jobs:
+  ping-database:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query published bulletins (read-only anon key)
+        run: |
+          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
+            echo "Supabase secrets not configured yet. Skipping ping."
+            exit 0
+          fi
+          curl --fail --silent --show-error \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/weekly_bulletins?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
