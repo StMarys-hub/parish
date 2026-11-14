@@ -229,6 +229,31 @@ export async function getActivePushSubscriberCount(): Promise<number> {
   return typeof data === 'number' ? data : 0;
 }
 
+async function extractFunctionError(err: unknown, fallback: string): Promise<Error> {
+  if (err && typeof err === 'object' && 'context' in err) {
+    const ctx = (err as { context?: unknown }).context;
+    if (ctx instanceof Response) {
+      try {
+        const body = (await ctx.clone().json()) as { error?: unknown; message?: unknown };
+        if (typeof body.error === 'string' && body.error.trim()) {
+          return new Error(body.error);
+        }
+        if (typeof body.message === 'string' && body.message.trim()) {
+          return new Error(body.message);
+        }
+      } catch {
+        try {
+          const text = (await ctx.clone().text()).trim();
+          if (text) return new Error(text);
+        } catch {
+          // Fall through to standard error formatting
+        }
+      }
+    }
+  }
+  return toError(err, fallback);
+}
+
 export async function publishBulletinAndNotify(params: {
   bulletinId: string;
   sendPush: boolean;
@@ -241,7 +266,7 @@ export async function publishBulletinAndNotify(params: {
     body: params,
   });
 
-  if (error) throw toError(error, 'Failed to publish bulletin.');
+  if (error) throw await extractFunctionError(error, 'Failed to publish bulletin.');
   return data as { published: boolean; sent: number; deactivated: number };
 }
 

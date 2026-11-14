@@ -88,13 +88,30 @@ Deno.serve(async (req: Request) => {
     }
 
     // 4. Configure VAPID Application Server Keys from Supabase Secrets
-    const vapidKeysJson = Deno.env.get("VAPID_KEYS_JSON");
-    const vapidSubject = Deno.env.get("VAPID_SUBJECT") ?? "mailto:vicar@stmarysyroclt.org";
-    if (!vapidKeysJson) {
+    const rawVapidKeysJson = Deno.env.get("VAPID_KEYS_JSON")?.trim();
+    const rawSubject = (Deno.env.get("VAPID_SUBJECT") ?? "mailto:vicar@stmarysyroclt.org").trim();
+    const vapidSubject = rawSubject.startsWith("mailto:") || rawSubject.startsWith("https://")
+      ? rawSubject
+      : `mailto:${rawSubject}`;
+
+    if (!rawVapidKeysJson) {
       return jsonError("VAPID_KEYS_JSON secret is not configured on Supabase", 500);
     }
 
-    const exportedKeys = JSON.parse(vapidKeysJson);
+    let exportedKeys: webpush.ExportedVapidKeys;
+    try {
+      exportedKeys = parseVapidKeysJson(rawVapidKeysJson);
+    } catch (parseErr) {
+      const detail = parseErr instanceof Error ? parseErr.message : String(parseErr);
+      console.error("Invalid VAPID_KEYS_JSON format:", detail);
+      return jsonError(`VAPID_KEYS_JSON is not valid JSON: ${detail}`, 500);
+    }
+
+    if (!exportedKeys || typeof exportedKeys !== "object" || !exportedKeys.publicKey || !exportedKeys.privateKey) {
+      console.error("VAPID_KEYS_JSON missing publicKey or privateKey fields");
+      return jsonError("VAPID_KEYS_JSON must contain publicKey and privateKey JWK objects", 500);
+    }
+
     const vapidKeys = await webpush.importVapidKeys(exportedKeys);
     const appServer = await webpush.ApplicationServer.new({
       contactInformation: vapidSubject,
@@ -178,9 +195,40 @@ Deno.serve(async (req: Request) => {
     return jsonOk({ published: true, sent: sentCount, deactivated: expiredIds.length });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected server error";
+    console.error("publish-and-notify error:", err);
     return jsonError(message, 500);
   }
 });
+
+function parseVapidKeysJson(rawInput: string): webpush.ExportedVapidKeys {
+  let raw = rawInput.trim();
+  if (raw.startsWith("'") && raw.endsWith("'") && raw.length >= 2) {
+    raw = raw.slice(1, -1).trim();
+  }
+
+  try {
+    let parsed: unknown = JSON.parse(raw);
+    if (typeof parsed === "string") {
+      parsed = JSON.parse(parsed);
+    }
+    if (parsed && typeof parsed === "object") {
+      return parsed as webpush.ExportedVapidKeys;
+    }
+  } catch {
+    // Recover JWK JSON whose inner double quotes were stripped by Windows PowerShell/CMD
+  }
+
+  const normalized = raw
+    .replace(/([{\[,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":')
+    .replace(/(:\s*|,\s*|\[\s*)([A-Za-z0-9_-]+)(?=\s*[,\]}])/g, (match, prefix, token) => {
+      if (token === "true" || token === "false" || token === "null") {
+        return match;
+      }
+      return `${prefix}"${token}"`;
+    });
+
+  return JSON.parse(normalized) as webpush.ExportedVapidKeys;
+}
 
 function jsonOk(data: unknown) {
   return new Response(JSON.stringify(data), {
