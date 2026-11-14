@@ -105,6 +105,9 @@ export function AdminBulletinComposer({
   const handleAutoParse = () => {
     if (!rawPaste.trim()) return;
     const parsed = parseRawBulletin(rawPaste);
+    if (parsed.weekStart && parsed.weekStart !== weekStart) {
+      setBulletinId(undefined);
+    }
     if (parsed.weekStart) setWeekStart(parsed.weekStart);
     if (parsed.weekEnd) setWeekEnd(parsed.weekEnd);
     if (parsed.title) {
@@ -235,12 +238,24 @@ export function AdminBulletinComposer({
     };
   };
 
+  const validateDates = (): string | null => {
+    if (!weekStart || !weekEnd) return 'Please enter both Week Start and Week End dates.';
+    if (weekEnd < weekStart) return 'Week End date must be on or after Week Start date.';
+    if (!title.trim()) return 'Please enter a Bulletin Title.';
+    return null;
+  };
+
   const handleSaveDraft = async () => {
     if (isSandbox) {
       setStatusBanner({
         type: 'err',
         text: 'Sandbox Mode: Connect Supabase in .env to save drafts to PostgreSQL.',
       });
+      return;
+    }
+    const validationErr = validateDates();
+    if (validationErr) {
+      setStatusBanner({ type: 'err', text: validationErr });
       return;
     }
     setSaving(true);
@@ -268,10 +283,15 @@ export function AdminBulletinComposer({
       });
       return;
     }
+    const validationErr = validateDates();
+    if (validationErr) {
+      setStatusBanner({ type: 'err', text: validationErr });
+      return;
+    }
     setSaving(true);
     try {
-      // Save latest edits as draft first so we have a guaranteed bulletinId
-      const saved = await upsertWeeklyBulletin(buildPayload('draft'));
+      // Preserve current status so opening and canceling the modal never unpublishes a live bulletin
+      const saved = await upsertWeeklyBulletin(buildPayload(initialBulletin.status));
       setBulletinId(saved.id);
       const count = await getActivePushSubscriberCount();
       setSubscriberCount(count);

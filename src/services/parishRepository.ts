@@ -136,6 +136,18 @@ export async function getActiveAdminProfile(): Promise<AdminUserProfile | null> 
   return data as AdminUserProfile;
 }
 
+function toError(err: unknown, fallback: string): Error {
+  if (err instanceof Error) return err;
+  if (err && typeof err === 'object' && 'message' in err) {
+    const obj = err as { message?: unknown; details?: unknown; hint?: unknown };
+    const parts = [obj.message, obj.details, obj.hint].filter(
+      (v): v is string => typeof v === 'string' && v.trim().length > 0
+    );
+    if (parts.length > 0) return new Error(parts.join(' — '));
+  }
+  return new Error(fallback);
+}
+
 export async function fetchAllBulletinsForAdmin(): Promise<WeeklyBulletin[]> {
   if (!supabase || !isSupabaseConfigured) return SAMPLE_BULLETINS;
 
@@ -145,7 +157,7 @@ export async function fetchAllBulletinsForAdmin(): Promise<WeeklyBulletin[]> {
     .order('week_start', { ascending: false })
     .limit(12);
 
-  if (error) throw error;
+  if (error) throw toError(error, 'Failed to fetch bulletins.');
   return (data ?? []) as WeeklyBulletin[];
 }
 
@@ -158,8 +170,10 @@ export async function upsertWeeklyBulletin(
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Omit id so onConflict: 'week_start' safely updates existing weeks or creates a new UUID for new weeks
+  const { id: _omitId, ...rest } = bulletin;
   const payload = {
-    ...bulletin,
+    ...rest,
     updated_by: user?.id ?? null,
     updated_at: new Date().toISOString(),
   };
@@ -170,7 +184,7 @@ export async function upsertWeeklyBulletin(
     .select('*')
     .single();
 
-  if (error) throw error;
+  if (error) throw toError(error, 'Failed to save bulletin.');
   return data as WeeklyBulletin;
 }
 
@@ -198,7 +212,7 @@ export async function uploadFlyerFile(file: File): Promise<{
     upsert: false,
   });
 
-  if (error) throw error;
+  if (error) throw toError(error, 'Flyer upload failed.');
 
   const { data } = supabase.storage.from('flyers').getPublicUrl(storagePath);
   return {
@@ -227,7 +241,7 @@ export async function publishBulletinAndNotify(params: {
     body: params,
   });
 
-  if (error) throw error;
+  if (error) throw toError(error, 'Failed to publish bulletin.');
   return data as { published: boolean; sent: number; deactivated: number };
 }
 
@@ -240,14 +254,14 @@ export async function saveRegularScheduleItem(
     .upsert({ ...item, updated_at: new Date().toISOString() })
     .select('*')
     .single();
-  if (error) throw error;
+  if (error) throw toError(error, 'Failed to save schedule item.');
   return data as RegularScheduleItem;
 }
 
 export async function deleteRegularScheduleItem(id: string): Promise<void> {
   if (!supabase) throw new Error('Supabase is not configured');
   const { error } = await supabase.from('regular_schedules').delete().eq('id', id);
-  if (error) throw error;
+  if (error) throw toError(error, 'Failed to delete schedule item.');
 }
 
 export async function updateParishInfo(info: ParishInfo): Promise<ParishInfo> {
@@ -257,7 +271,7 @@ export async function updateParishInfo(info: ParishInfo): Promise<ParishInfo> {
     .upsert({ ...info, id: 1, updated_at: new Date().toISOString() })
     .select('*')
     .single();
-  if (error) throw error;
+  if (error) throw toError(error, 'Failed to update parish info.');
   return data as ParishInfo;
 }
 
@@ -268,6 +282,6 @@ export async function fetchAuditLogs(limit = 50): Promise<AuditLogEntry[]> {
     .select('id, actor_email, actor_role, action, table_name, record_id, change_summary, created_at')
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (error) throw error;
+  if (error) throw toError(error, 'Failed to load audit logs.');
   return (data ?? []) as AuditLogEntry[];
 }
