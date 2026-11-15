@@ -117,21 +117,74 @@ export interface ParishInfo {
   general_notes?: string | null;
 }
 
+export type AdminRole = 'super_admin' | 'vicar' | 'trustee' | 'secretary';
+
+export type InviteStatus = 'active' | 'pending_invite';
+
 export interface AdminUserProfile {
   user_id: string;
   email: string;
   full_name: string;
-  role: 'vicar' | 'trustee' | 'secretary';
+  role: AdminRole;
+  designation?: string | null;
+  invite_status?: InviteStatus;
+  last_active_at?: string | null;
+  created_at?: string;
   is_active: boolean;
 }
+
+export type AuditAction =
+  | 'CREATE'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'PUBLISH'
+  | 'PUSH_DISPATCH'
+  | 'USER_INVITE'
+  | 'ROLE_CHANGE'
+  | 'USER_DEACTIVATE'
+  | 'USER_DELETE'
+  | 'PASSWORD_RESET'
+  | 'THEME_CHANGE';
 
 export interface AuditLogEntry {
   id: number;
   actor_email: string;
   actor_role?: string | null;
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'PUBLISH' | 'PUSH_DISPATCH';
+  action: AuditAction;
   table_name: string;
   record_id: string;
   change_summary: string;
   created_at: string;
+}
+
+export type LiturgicalSeasonId =
+  | 'subara'
+  | 'denaha'
+  | 'sauma-ramba'
+  | 'qyamta'
+  | 'sliha'
+  | 'qaita'
+  | 'elijah-sliba-moses'
+  | 'mushah'
+  | 'qudash-edta';
+
+export type ThemeId = LiturgicalSeasonId | 'classic';
+
+export type ThemeMode = 'auto' | ThemeId;
+
+export interface AppSettings {
+  id: number;
+  theme_mode: ThemeMode;
+  updated_at?: string;
+}
+
+export function isSuperAdminRole(role?: string | null): boolean {
+  return role === 'super_admin' || role === 'vicar';
+}
+
+export function formatRoleLabel(role?: string | null): string {
+  if (role === 'super_admin' || role === 'vicar') return 'Super Admin / Vicar';
+  if (role === 'trustee') return 'Trustee';
+  if (role === 'secretary') return 'Secretary';
+  return role ?? 'Admin';
 }

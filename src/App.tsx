@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpen, CalendarDays, Info } from 'lucide-react';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 import { PHASE_FLAGS } from './config/features';
 import {
@@ -10,19 +11,25 @@ import {
 import { AdminPortal } from './features/admin/AdminPortal';
 import { BulletinView } from './features/bulletin/BulletinView';
 import { AboutParishView } from './features/parish/AboutParishView';
+import { InstallShareBanner } from './features/pwa/InstallShareBanner';
 import { SchedulesView } from './features/schedules/SchedulesView';
+import { applyThemeToDocument, resolveActiveTheme } from './lib/themeEngine';
 import {
+  fetchAppSettings,
   fetchParishInfo,
   fetchPublishedBulletins,
   fetchRegularSchedules,
 } from './services/parishRepository';
-import { ParishInfo, RegularScheduleItem, WeeklyBulletin } from './types/parish';
+import { ParishInfo, RegularScheduleItem, ThemeMode, WeeklyBulletin } from './types/parish';
 
 type AppTab = 'bulletin' | 'schedules' | 'about' | 'admin';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<AppTab>(() =>
-    window.location.hash === '#/admin' ? 'admin' : 'bulletin'
+    window.location.hash.startsWith('#/admin') ||
+    (window.location.hash.includes('type=recovery') && window.location.hash.includes('access_token'))
+      ? 'admin'
+      : 'bulletin'
   );
   const [bulletins, setBulletins] = useState<WeeklyBulletin[]>(SAMPLE_BULLETINS);
   const [bulletinSource, setBulletinSource] = useState<'live' | 'cache' | 'sample'>('sample');
@@ -31,19 +38,32 @@ export function App() {
     SAMPLE_REGULAR_SCHEDULES
   );
   const [parishInfo, setParishInfo] = useState<ParishInfo>(SAMPLE_PARISH_INFO);
+  const [themeMode, setThemeMode] = useState<ThemeMode>('auto');
+
+  const resolvedTheme = useMemo(() => resolveActiveTheme(themeMode), [themeMode]);
+
+  useEffect(() => {
+    try {
+      applyThemeToDocument(resolvedTheme.effectiveThemeId);
+    } catch {
+      applyThemeToDocument('classic');
+    }
+  }, [resolvedTheme.effectiveThemeId]);
 
   const loadAll = useCallback(async () => {
     setLoadingBulletins(true);
     try {
-      const [bulRes, schedRes, infoRes] = await Promise.all([
+      const [bulRes, schedRes, infoRes, settingsRes] = await Promise.all([
         fetchPublishedBulletins(4),
         fetchRegularSchedules(),
         fetchParishInfo(),
+        fetchAppSettings(),
       ]);
       setBulletins(bulRes.bulletins);
       setBulletinSource(bulRes.source);
       setRegularSchedules(schedRes);
       setParishInfo(infoRes);
+      setThemeMode(settingsRes.theme_mode);
     } finally {
       setLoadingBulletins(false);
     }
@@ -55,7 +75,7 @@ export function App() {
 
   useEffect(() => {
     const onHashChange = () => {
-      if (window.location.hash === '#/admin') {
+      if (window.location.hash.startsWith('#/admin')) {
         setActiveTab('admin');
       } else if (activeTab === 'admin') {
         setActiveTab('bulletin');
@@ -72,9 +92,9 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] pb-24 sm:pb-10">
+    <div className="min-h-screen bg-parish-canvas pb-24 sm:pb-10">
       {/* Persistent Top Header (Fixed height for zero CLS) */}
-      <header className="sticky top-0 z-30 border-b border-[#E7E2DA] bg-white/95 backdrop-blur-sm">
+      <header className="sticky top-0 z-30 border-b border-parish-border bg-white/95 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4">
           <button
             type="button"
@@ -89,10 +109,10 @@ export function App() {
               className="h-9 w-9 shrink-0 rounded-xl"
             />
             <div className="min-w-0">
-              <h1 className="truncate font-serif text-sm font-bold text-[#1E3A5F] sm:text-base">
+              <h1 className="truncate font-serif text-sm font-bold text-parish-navy sm:text-base">
                 {parishInfo.parish_name}
               </h1>
-              <p className="truncate text-[11px] text-[#526071]">Charlotte, NC</p>
+              <p className="truncate text-[11px] text-parish-muted">Charlotte, NC</p>
             </div>
           </button>
 
@@ -104,8 +124,8 @@ export function App() {
                 onClick={() => navigate('bulletin')}
                 className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors ${
                   activeTab === 'bulletin'
-                    ? 'bg-[#1E3A5F] text-white'
-                    : 'text-[#526071] hover:bg-[#FAF8F5] hover:text-[#1E293B]'
+                    ? 'bg-parish-navy text-white'
+                    : 'text-parish-muted hover:bg-parish-canvas hover:text-parish-ink'
                 }`}
               >
                 Bulletin
@@ -115,8 +135,8 @@ export function App() {
                 onClick={() => navigate('schedules')}
                 className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors ${
                   activeTab === 'schedules'
-                    ? 'bg-[#1E3A5F] text-white'
-                    : 'text-[#526071] hover:bg-[#FAF8F5] hover:text-[#1E293B]'
+                    ? 'bg-parish-navy text-white'
+                    : 'text-parish-muted hover:bg-parish-canvas hover:text-parish-ink'
                 }`}
               >
                 Schedules
@@ -126,8 +146,8 @@ export function App() {
                 onClick={() => navigate('about')}
                 className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors ${
                   activeTab === 'about'
-                    ? 'bg-[#1E3A5F] text-white'
-                    : 'text-[#526071] hover:bg-[#FAF8F5] hover:text-[#1E293B]'
+                    ? 'bg-parish-navy text-white'
+                    : 'text-parish-muted hover:bg-parish-canvas hover:text-parish-ink'
                 }`}
               >
                 About Parish
@@ -139,11 +159,18 @@ export function App() {
 
       {/* Main Content Container */}
       <main className="mx-auto max-w-3xl px-4 pt-5">
+        {activeTab !== 'admin' && (
+          <ErrorBoundary>
+            <InstallShareBanner variant="banner" />
+          </ErrorBoundary>
+        )}
+
         {activeTab === 'bulletin' && PHASE_FLAGS.weeklyBulletin && (
           <BulletinView
             bulletins={bulletins}
             isLoading={loadingBulletins}
             source={bulletinSource}
+            seasonLabel={resolvedTheme.displayLabel}
           />
         )}
 
@@ -162,13 +189,23 @@ export function App() {
         )}
 
         {activeTab === 'admin' && PHASE_FLAGS.adminPortal && (
-          <AdminPortal
-            fallbackBulletin={bulletins[0] ?? SAMPLE_BULLETINS[0]}
-            regularSchedules={regularSchedules}
-            parishInfo={parishInfo}
-            onDataChanged={loadAll}
-            onBackToApp={() => navigate('bulletin')}
-          />
+          <ErrorBoundary
+            fallback={
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center text-sm text-rose-900">
+                Admin Portal encountered an unexpected error. Please reload or return to the main bulletin.
+              </div>
+            }
+          >
+            <AdminPortal
+              fallbackBulletin={bulletins[0] ?? SAMPLE_BULLETINS[0]}
+              regularSchedules={regularSchedules}
+              parishInfo={parishInfo}
+              themeMode={themeMode}
+              onThemeUpdated={(nextMode) => setThemeMode(nextMode)}
+              onDataChanged={loadAll}
+              onBackToApp={() => navigate('bulletin')}
+            />
+          </ErrorBoundary>
         )}
       </main>
 
@@ -176,14 +213,14 @@ export function App() {
       {activeTab !== 'admin' && (
         <nav
           aria-label="Mobile bottom navigation"
-          className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#E7E2DA] bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm sm:hidden"
+          className="fixed bottom-0 left-0 right-0 z-30 border-t border-parish-border bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm sm:hidden"
         >
           <div className="mx-auto grid max-w-md grid-cols-3">
             <button
               type="button"
               onClick={() => navigate('bulletin')}
               className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold ${
-                activeTab === 'bulletin' ? 'text-[#1E3A5F]' : 'text-[#526071]'
+                activeTab === 'bulletin' ? 'text-parish-navy' : 'text-parish-muted'
               }`}
             >
               <BookOpen className="h-5 w-5" />
@@ -193,7 +230,7 @@ export function App() {
               type="button"
               onClick={() => navigate('schedules')}
               className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold ${
-                activeTab === 'schedules' ? 'text-[#1E3A5F]' : 'text-[#526071]'
+                activeTab === 'schedules' ? 'text-parish-navy' : 'text-parish-muted'
               }`}
             >
               <CalendarDays className="h-5 w-5" />
@@ -203,7 +240,7 @@ export function App() {
               type="button"
               onClick={() => navigate('about')}
               className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold ${
-                activeTab === 'about' ? 'text-[#1E3A5F]' : 'text-[#526071]'
+                activeTab === 'about' ? 'text-parish-navy' : 'text-parish-muted'
               }`}
             >
               <Info className="h-5 w-5" />

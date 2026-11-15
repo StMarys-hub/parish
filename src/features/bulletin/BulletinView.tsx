@@ -4,7 +4,6 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
-  DollarSign,
   ExternalLink,
   FileText,
   FolderOpen,
@@ -21,11 +20,13 @@ import {
   WeeklyBulletin,
 } from '../../types/parish';
 import { PushOptInCard } from '../notifications/PushOptInCard';
+import { CollectionHighlightCard } from './CollectionHighlightCard';
 
 interface BulletinViewProps {
   bulletins: WeeklyBulletin[];
   isLoading: boolean;
   source: 'live' | 'cache' | 'sample';
+  seasonLabel?: string;
 }
 
 const ARCHIVE_LABELS = ['Current', 'Last Week', '2 Wks Ago', '3 Wks Ago'] as const;
@@ -50,7 +51,12 @@ function getActionIcon(kind: ActionAttachment['kind']) {
   }
 }
 
-export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps) {
+export function BulletinView({
+  bulletins,
+  isLoading,
+  source,
+  seasonLabel,
+}: BulletinViewProps) {
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<'All' | AnnouncementCategory>('All');
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
@@ -81,18 +87,18 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
   if (isLoading && bulletins.length === 0) {
     return (
       <div className="space-y-4">
-        <div className="h-32 animate-pulse rounded-2xl bg-[#E7E2DA]/60" />
-        <div className="h-10 animate-pulse rounded-xl bg-[#E7E2DA]/50" />
-        <div className="h-44 animate-pulse rounded-2xl bg-[#E7E2DA]/50" />
-        <div className="h-44 animate-pulse rounded-2xl bg-[#E7E2DA]/50" />
+        <div className="h-32 animate-pulse rounded-2xl bg-parish-border/60" />
+        <div className="h-10 animate-pulse rounded-xl bg-parish-border/50" />
+        <div className="h-44 animate-pulse rounded-2xl bg-parish-border/50" />
+        <div className="h-44 animate-pulse rounded-2xl bg-parish-border/50" />
       </div>
     );
   }
 
   if (!activeBulletin) {
     return (
-      <div className="rounded-2xl border border-[#E7E2DA] bg-white p-8 text-center">
-        <p className="text-base font-medium text-[#1E293B]">No published parish bulletins yet.</p>
+      <div className="rounded-2xl border border-parish-border bg-white p-8 text-center">
+        <p className="text-base font-medium text-parish-ink">No published parish bulletins yet.</p>
       </div>
     );
   }
@@ -102,12 +108,26 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
   return (
     <div className="space-y-5">
       {/* Pastoral Greeting Banner */}
-      <section className="rounded-2xl bg-gradient-to-br from-[#1E3A5F] to-[#152943] p-5 text-white shadow-sm">
+      <section className="rounded-2xl bg-gradient-to-br from-parish-navy to-parish-navy-dark p-5 text-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#D4AF37]/40 bg-[#D4AF37]/15 px-3 py-1 text-xs font-semibold text-[#FDE68A]">
-            <Sparkles className="h-3.5 w-3.5" />
-            {formatShortDate(activeBulletin.week_start)} – {formatShortDate(activeBulletin.week_end)}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold"
+              style={{
+                color: 'var(--parish-hero-badge-text)',
+                borderColor: 'var(--parish-hero-badge-border)',
+                backgroundColor: 'var(--parish-hero-badge-bg)',
+              }}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {formatShortDate(activeBulletin.week_start)} – {formatShortDate(activeBulletin.week_end)}
+            </span>
+            {seasonLabel && (
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/90">
+                {seasonLabel}
+              </span>
+            )}
+          </div>
           {source !== 'live' && (
             <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-medium text-slate-200">
               {source === 'cache' ? 'Offline Copy' : 'Sample Preview'}
@@ -117,12 +137,12 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
         <p className="mt-3 font-serif text-lg font-semibold leading-snug text-[#FAF8F5] sm:text-xl">
           “{activeBulletin.greeting}”
         </p>
-        <p className="mt-1 text-xs text-slate-300">{activeBulletin.title}</p>
+        <p className="mt-1 text-xs text-slate-200">{activeBulletin.title}</p>
       </section>
 
       {/* 3-Week Rolling Archive Switcher */}
       {bulletins.length > 1 && (
-        <nav aria-label="Bulletin archive weeks" className="grid grid-cols-4 gap-1.5 rounded-xl border border-[#E7E2DA] bg-white p-1">
+        <nav aria-label="Bulletin archive weeks" className="grid grid-cols-4 gap-1.5 rounded-xl border border-parish-border bg-white p-1">
           {bulletins.slice(0, 4).map((b, idx) => {
             const active = idx === selectedWeekIndex;
             return (
@@ -135,8 +155,8 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
                 }}
                 className={`rounded-lg px-2 py-2 text-center text-xs font-semibold transition-colors ${
                   active
-                    ? 'bg-[#1E3A5F] text-white shadow-2xs'
-                    : 'text-[#526071] hover:bg-[#FAF8F5] hover:text-[#1E293B]'
+                    ? 'bg-parish-navy text-white shadow-2xs'
+                    : 'text-parish-muted hover:bg-parish-canvas hover:text-parish-ink'
                 }`}
               >
                 <span className="block truncate">{ARCHIVE_LABELS[idx] ?? `Week ${idx + 1}`}</span>
@@ -154,58 +174,58 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
 
       {/* This Week's Dynamic Liturgical Schedule Accordion */}
       {activeBulletin.daily_schedule.length > 0 && (
-        <section className="overflow-hidden rounded-2xl border border-[#E7E2DA] bg-white shadow-2xs">
+        <section className="overflow-hidden rounded-2xl border border-parish-border bg-white shadow-2xs">
           <button
             type="button"
             onClick={() => setScheduleExpanded((v) => !v)}
             aria-expanded={scheduleExpanded}
-            className="flex w-full items-center justify-between px-4 py-3.5 text-left hover:bg-[#FAF8F5]/70"
+            className="flex w-full items-center justify-between px-4 py-3.5 text-left hover:bg-parish-canvas/70"
           >
             <div className="flex items-center gap-2.5">
-              <div className="rounded-lg bg-[#1E3A5F]/10 p-2 text-[#1E3A5F]">
+              <div className="rounded-lg bg-parish-navy/10 p-2 text-parish-navy">
                 <Calendar className="h-4 w-4" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-[#1E293B]">
+                <h2 className="text-sm font-bold text-parish-ink">
                   This Week’s Holy Qurbana & Services
                 </h2>
-                <p className="text-xs text-[#526071]">
+                <p className="text-xs text-parish-muted">
                   {scheduleExpanded ? 'Tap to collapse daily times' : 'Tap to expand full 7-day parish schedule'}
                 </p>
               </div>
             </div>
             {scheduleExpanded ? (
-              <ChevronUp className="h-5 w-5 text-[#526071]" />
+              <ChevronUp className="h-5 w-5 text-parish-muted" />
             ) : (
-              <ChevronDown className="h-5 w-5 text-[#526071]" />
+              <ChevronDown className="h-5 w-5 text-parish-muted" />
             )}
           </button>
 
           {scheduleExpanded && (
-            <div className="divide-y divide-[#E7E2DA] border-t border-[#E7E2DA]">
+            <div className="divide-y divide-parish-border border-t border-parish-border">
               {activeBulletin.daily_schedule.map((day) => {
                 const isToday = day.date === todayIso;
                 return (
                   <div
                     key={day.date}
-                    className={`px-4 py-3 ${isToday ? 'bg-[#FEF7E0]/60' : 'bg-white'}`}
+                    className={`px-4 py-3 ${isToday ? 'bg-parish-gold-soft/60' : 'bg-white'}`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-[#1E293B]">
+                        <span className="text-sm font-bold text-parish-ink">
                           {day.dayLabel}
                         </span>
-                        <span className="text-xs text-[#526071]">
+                        <span className="text-xs text-parish-muted">
                           {formatShortDate(day.date)}
                         </span>
                         {isToday && (
-                          <span className="rounded-full bg-[#1E3A5F] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                          <span className="rounded-full bg-parish-navy px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
                             Today
                           </span>
                         )}
                       </div>
                       {day.feastNote && (
-                        <span className="rounded-full border border-[#B8860B]/30 bg-[#FEF7E0] px-2.5 py-0.5 text-[11px] font-semibold text-[#8A6508]">
+                        <span className="rounded-full border border-parish-gold/30 bg-parish-gold-soft px-2.5 py-0.5 text-[11px] font-semibold text-parish-gold-ink">
                           {day.feastNote}
                         </span>
                       )}
@@ -213,9 +233,9 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
 
                     <ul className="mt-2 space-y-1.5">
                       {day.items.map((svc, sIdx) => (
-                        <li key={sIdx} className="flex items-start gap-2 text-sm text-[#1E293B]">
+                        <li key={sIdx} className="flex items-start gap-2 text-sm text-parish-ink">
                           {svc.time ? (
-                            <span className="inline-flex shrink-0 items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-[#1E3A5F]">
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-parish-navy">
                               <Clock className="h-3 w-3" />
                               {svc.time}
                             </span>
@@ -225,7 +245,7 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
                           <span>
                             {svc.title}
                             {svc.celebrant && (
-                              <span className="ml-1.5 text-xs font-medium text-[#526071]">
+                              <span className="ml-1.5 text-xs font-medium text-parish-muted">
                                 ({svc.celebrant})
                               </span>
                             )}
@@ -254,8 +274,8 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
           onClick={() => setSelectedCategory('All')}
           className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
             selectedCategory === 'All'
-              ? 'bg-[#1E3A5F] text-white'
-              : 'border border-[#E7E2DA] bg-white text-[#526071] hover:text-[#1E293B]'
+              ? 'bg-parish-navy text-white'
+              : 'border border-parish-border bg-white text-parish-muted hover:text-parish-ink'
           }`}
         >
           All ({activeBulletin.announcements.length})
@@ -269,8 +289,8 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
             onClick={() => setSelectedCategory(cat)}
             className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
               selectedCategory === cat
-                ? 'bg-[#1E3A5F] text-white'
-                : 'border border-[#E7E2DA] bg-white text-[#526071] hover:text-[#1E293B]'
+                ? 'bg-parish-navy text-white'
+                : 'border border-parish-border bg-white text-parish-muted hover:text-parish-ink'
             }`}
           >
             {cat} ({count})
@@ -278,15 +298,15 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
         ))}
       </div>
 
-      {/* Categorized Announcement Cards */}
+      {/* Categorized Announcement Cards (Always pure #FFFFFF background + #1E293B dark text) */}
       <div className="space-y-3.5">
         {visibleAnnouncements.map((card) => (
           <article
             key={card.id}
-            className="rounded-2xl border border-[#E7E2DA] bg-white p-4 shadow-2xs transition-shadow hover:shadow-sm sm:p-5"
+            className="rounded-2xl border border-parish-border bg-white p-4 shadow-2xs transition-shadow hover:shadow-sm sm:p-5"
           >
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <h3 className="text-base font-bold leading-snug text-[#1E293B] sm:text-lg">
+              <h3 className="text-base font-bold leading-snug text-parish-ink sm:text-lg">
                 {card.title}
               </h3>
               <CategoryBadge category={card.category} />
@@ -295,21 +315,21 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
             {(card.dateTimeLabel || card.locationLabel) && (
               <div className="mt-2.5 flex flex-wrap gap-2">
                 {card.dateTimeLabel && (
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-[#FAF8F5] px-2.5 py-1 text-xs font-medium text-[#1E3A5F]">
-                    <Calendar className="h-3.5 w-3.5 text-[#B8860B]" />
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-parish-canvas px-2.5 py-1 text-xs font-medium text-parish-navy">
+                    <Calendar className="h-3.5 w-3.5 text-parish-gold" />
                     {card.dateTimeLabel}
                   </span>
                 )}
                 {card.locationLabel && (
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-[#FAF8F5] px-2.5 py-1 text-xs font-medium text-[#526071]">
-                    <MapPin className="h-3.5 w-3.5 text-[#1E3A5F]" />
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-parish-canvas px-2.5 py-1 text-xs font-medium text-parish-muted">
+                    <MapPin className="h-3.5 w-3.5 text-parish-navy" />
                     {card.locationLabel}
                   </span>
                 )}
               </div>
             )}
 
-            <p className="mt-3 whitespace-pre-line text-base leading-[1.6] text-[#1E293B]">
+            <p className="mt-3 whitespace-pre-line text-base leading-[1.6] text-parish-ink">
               {card.body}
             </p>
 
@@ -331,7 +351,7 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
                             mimeType: action.mimeType,
                           })
                         }
-                        className="inline-flex items-center gap-2 rounded-xl border border-[#1E3A5F]/20 bg-[#1E3A5F]/5 px-3.5 py-2 text-sm font-semibold text-[#1E3A5F] hover:bg-[#1E3A5F]/10"
+                        className="inline-flex items-center gap-2 rounded-xl border border-parish-navy/20 bg-parish-navy/5 px-3.5 py-2 text-sm font-semibold text-parish-navy hover:bg-parish-navy/10"
                       >
                         {getActionIcon(action.kind)}
                         {action.label}
@@ -345,7 +365,7 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
                       href={safeUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-xl bg-[#1E3A5F] px-3.5 py-2 text-sm font-semibold text-white shadow-2xs hover:bg-[#152943]"
+                      className="inline-flex items-center gap-2 rounded-xl bg-parish-navy px-3.5 py-2 text-sm font-semibold text-white shadow-2xs hover:bg-parish-navy-dark"
                     >
                       {getActionIcon(action.kind)}
                       {action.label}
@@ -358,40 +378,26 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
         ))}
       </div>
 
-      {/* Sunday Collection Highlight Card */}
+      {/* Tap-to-Reveal Sunday Collection Highlight Card */}
       {activeBulletin.collection_summary && (
-        <section className="flex items-center justify-between rounded-2xl border border-[#B8860B]/30 bg-[#FEF7E0]/60 p-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-[#B8860B]/15 p-2.5 text-[#8A6508]">
-              <DollarSign className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#8A6508]">
-                Weekly Offertory
-              </p>
-              <p className="text-sm font-bold text-[#1E293B]">
-                {activeBulletin.collection_summary.label}
-              </p>
-            </div>
-          </div>
-          <span className="text-xl font-extrabold text-[#1E3A5F]">
-            {activeBulletin.collection_summary.amountDisplay}
-          </span>
-        </section>
+        <CollectionHighlightCard
+          key={activeBulletin.id}
+          collection={activeBulletin.collection_summary}
+        />
       )}
 
       {/* Pastoral Sign-Off Footer */}
-      <footer className="rounded-2xl border border-[#E7E2DA] bg-white p-5 text-center">
-        <p className="text-sm italic text-[#526071]">{activeBulletin.sign_off.closing}</p>
-        <p className="mt-1 font-serif text-base font-bold text-[#1E3A5F]">
+      <footer className="rounded-2xl border border-parish-border bg-white p-5 text-center">
+        <p className="text-sm italic text-parish-muted">{activeBulletin.sign_off.closing}</p>
+        <p className="mt-1 font-serif text-base font-bold text-parish-navy">
           {activeBulletin.sign_off.name}
         </p>
-        <p className="text-xs text-[#526071]">{activeBulletin.sign_off.title}</p>
+        <p className="text-xs text-parish-muted">{activeBulletin.sign_off.title}</p>
         <div className="mt-2 flex flex-wrap justify-center gap-3 text-xs">
           {sanitizeActionUrl(`mailto:${activeBulletin.sign_off.email}`) && (
             <a
               href={`mailto:${activeBulletin.sign_off.email}`}
-              className="font-medium text-[#1E3A5F] underline"
+              className="font-medium text-parish-navy underline"
             >
               {activeBulletin.sign_off.email}
             </a>
@@ -401,7 +407,7 @@ export function BulletinView({ bulletins, isLoading, source }: BulletinViewProps
               href={activeBulletin.sign_off.website}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium text-[#1E3A5F] underline"
+              className="font-medium text-parish-navy underline"
             >
               stmarysyroclt.org
             </a>

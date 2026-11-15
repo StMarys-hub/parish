@@ -10,7 +10,7 @@ export function PwaUpdatePrompt() {
   if (!needRefresh) return null;
 
   return (
-    <div className="fixed bottom-20 left-4 right-4 z-40 mx-auto max-w-md rounded-2xl border border-[#1E3A5F]/20 bg-[#1E3A5F] p-3.5 text-white shadow-lg sm:bottom-6">
+    <div className="fixed bottom-20 left-4 right-4 z-40 mx-auto max-w-md rounded-2xl border border-parish-navy/20 bg-parish-navy p-3.5 text-white shadow-lg sm:bottom-6">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-medium">A new version of the parish app is available.</p>
         <div className="flex items-center gap-2">

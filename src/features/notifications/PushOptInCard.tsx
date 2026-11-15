@@ -59,23 +59,23 @@ export function PushOptInCard({ compact = false }: { compact?: boolean }) {
 
   if (support === 'ios-needs-homescreen') {
     return (
-      <div className="rounded-2xl border border-[#E7E2DA] bg-[#FEF7E0]/70 p-4">
+      <div className="rounded-2xl border border-parish-border bg-parish-gold-soft/70 p-4">
         <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-[#1E3A5F] p-2 text-white">
+          <div className="rounded-xl bg-parish-navy p-2 text-white">
             <Smartphone className="h-5 w-5" />
           </div>
           <div className="space-y-1.5">
-            <h3 className="text-sm font-bold text-[#1E293B]">
+            <h3 className="text-sm font-bold text-parish-ink">
               Enable Push Alerts on iPhone / iPad
             </h3>
-            <p className="text-xs leading-relaxed text-[#526071]">
+            <p className="text-xs leading-relaxed text-parish-muted">
               Apple requires adding the parish app to your Home Screen before alerts can be enabled:
             </p>
-            <ol className="list-inside list-decimal space-y-1 text-xs font-medium text-[#1E293B]">
+            <ol className="list-inside list-decimal space-y-1 text-xs font-medium text-parish-ink">
               <li className="flex items-center gap-1.5">
                 <span>1. Tap Safari’s</span>
                 <span className="inline-flex items-center gap-1 rounded bg-white px-1.5 py-0.5 text-[11px] font-semibold shadow-2xs">
-                  <Share className="h-3 w-3 text-[#1E3A5F]" /> Share
+                  <Share className="h-3 w-3 text-parish-navy" /> Share
                 </span>
                 <span>button, then tap <strong>Add to Home Screen</strong>.</span>
               </li>
@@ -107,17 +107,17 @@ export function PushOptInCard({ compact = false }: { compact?: boolean }) {
   }
 
   return (
-    <div className="rounded-2xl border border-[#E7E2DA] bg-white p-4 shadow-2xs">
+    <div className="rounded-2xl border border-parish-border bg-white p-4 shadow-2xs">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-[#1E3A5F]/10 p-2.5 text-[#1E3A5F]">
+          <div className="rounded-xl bg-parish-navy/10 p-2.5 text-parish-navy">
             {isSubscribed ? <CheckCircle2 className="h-5 w-5 text-emerald-700" /> : <Bell className="h-5 w-5" />}
           </div>
           <div>
-            <h3 className="text-sm font-bold text-[#1E293B]">
+            <h3 className="text-sm font-bold text-parish-ink">
               {isSubscribed ? 'Weekly Parish Alerts Active' : 'Get Weekly Bulletin Alerts'}
             </h3>
-            <p className="mt-0.5 text-xs leading-relaxed text-[#526071]">
+            <p className="mt-0.5 text-xs leading-relaxed text-parish-muted">
               {isSubscribed
                 ? 'You will receive an instant notification when Fr. Rajeev publishes a new schedule or urgent announcement.'
                 : 'Receive an instant alert when the weekly Qurbana schedule or urgent parish notices are published.'}
@@ -130,7 +130,7 @@ export function PushOptInCard({ compact = false }: { compact?: boolean }) {
             type="button"
             onClick={handleUnsubscribe}
             disabled={loading}
-            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[#E7E2DA] bg-slate-50 px-3.5 py-2 text-xs font-semibold text-[#526071] hover:bg-slate-100 disabled:opacity-60"
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-parish-border bg-slate-50 px-3.5 py-2 text-xs font-semibold text-parish-muted hover:bg-slate-100 disabled:opacity-60"
           >
             <BellOff className="h-3.5 w-3.5" />
             {loading ? 'Updating...' : 'Disable Alerts'}
@@ -140,14 +140,14 @@ export function PushOptInCard({ compact = false }: { compact?: boolean }) {
             type="button"
             onClick={handleSubscribe}
             disabled={loading}
-            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#1E3A5F] px-4 py-2.5 text-xs font-semibold text-white shadow-2xs hover:bg-[#152943] disabled:opacity-60"
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-parish-navy px-4 py-2.5 text-xs font-semibold text-white shadow-2xs hover:bg-parish-navy-dark disabled:opacity-60"
           >
             <Bell className="h-3.5 w-3.5" />
             {loading ? 'Enabling...' : 'Enable Alerts'}
           </button>
         )}
       </div>
-      {feedback && <p className="mt-2 text-xs font-medium text-[#1E3A5F]">{feedback}</p>}
+      {feedback && <p className="mt-2 text-xs font-medium text-parish-navy">{feedback}</p>}
     </div>
   );
 }

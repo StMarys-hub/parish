@@ -1,22 +1,171 @@
 @import "tailwindcss";
 
-@theme {
-  --color-parish-canvas: #FAF8F5;
-  --color-parish-card: #FFFFFF;
-  --color-parish-navy: #1E3A5F;
-  --color-parish-navy-dark: #152943;
-  --color-parish-gold: #B8860B;
-  --color-parish-gold-soft: #FEF7E0;
-  --color-parish-ink: #1E293B;
-  --color-parish-muted: #526071;
-  --color-parish-border: #E7E2DA;
+/*
+ * Dynamic CSS Custom Property Theming Engine (Zero-Lag, Zero Re-Mount)
+ * - Body cards (#FFFFFF) & typography (#1E293B / #526071) remain neutral WCAG AA (>= 4.5:1)
+ *   across all 10 themes; liturgical colors tint headers, badges, borders, and accents only.
+ */
+:root,
+:root[data-theme="classic"] {
+  --parish-canvas: #FAF8F5;
+  --parish-card: #FFFFFF;
+  --parish-navy: #1E3A5F;
+  --parish-navy-dark: #152943;
+  --parish-gold: #B8860B;
+  --parish-gold-ink: #8A6508;
+  --parish-gold-soft: #FEF7E0;
+  --parish-hero-badge-text: #FDE68A;
+  --parish-hero-badge-border: rgba(212, 175, 55, 0.4);
+  --parish-hero-badge-bg: rgba(212, 175, 55, 0.15);
+  --parish-ink: #1E293B;
+  --parish-muted: #526071;
+  --parish-border: #E7E2DA;
+}
+
+/* 1. Subara (Annunciation) — Royal Marian Blue & Warm Gold */
+:root[data-theme="subara"] {
+  --parish-canvas: #F7F9FC;
+  --parish-navy: #1D3F72;
+  --parish-navy-dark: #132B4F;
+  --parish-gold: #B8860B;
+  --parish-gold-ink: #7C5806;
+  --parish-gold-soft: #FEF8E7;
+  --parish-hero-badge-text: #FDE68A;
+  --parish-hero-badge-border: rgba(253, 230, 138, 0.4);
+  --parish-hero-badge-bg: rgba(253, 230, 138, 0.14);
+  --parish-border: #DCE3EE;
+}
+
+/* 2. Denaha (Epiphany) — Radiant Ivory, Sky Blue & Gold */
+:root[data-theme="denaha"] {
+  --parish-canvas: #F8FAFC;
+  --parish-navy: #0F4C81;
+  --parish-navy-dark: #0A355C;
+  --parish-gold: #B45309;
+  --parish-gold-ink: #92400E;
+  --parish-gold-soft: #EFF7FF;
+  --parish-hero-badge-text: #BAE6FD;
+  --parish-hero-badge-border: rgba(186, 230, 253, 0.4);
+  --parish-hero-badge-bg: rgba(186, 230, 253, 0.14);
+  --parish-border: #DCE7F2;
+}
+
+/* 3. Sauma Ramba (Great Fast / Lent) — Deep Liturgical Violet & Muted Slate */
+:root[data-theme="sauma-ramba"] {
+  --parish-canvas: #F9F8FA;
+  --parish-navy: #4C1D57;
+  --parish-navy-dark: #33113C;
+  --parish-gold: #6D28D9;
+  --parish-gold-ink: #5B21B6;
+  --parish-gold-soft: #F5F0F9;
+  --parish-hero-badge-text: #E9D5FF;
+  --parish-hero-badge-border: rgba(233, 213, 255, 0.4);
+  --parish-hero-badge-bg: rgba(233, 213, 255, 0.14);
+  --parish-border: #E5DFEA;
+}
+
+/* 4. Qyamta (Resurrection / Easter) — Paschal White, Burnished Gold & Soft Amber */
+:root[data-theme="qyamta"] {
+  --parish-canvas: #FDFBF5;
+  --parish-navy: #7A4E00;
+  --parish-navy-dark: #5C3A00;
+  --parish-gold: #B45309;
+  --parish-gold-ink: #78350F;
+  --parish-gold-soft: #FEF9E6;
+  --parish-hero-badge-text: #FEF08A;
+  --parish-hero-badge-border: rgba(254, 240, 138, 0.45);
+  --parish-hero-badge-bg: rgba(254, 240, 138, 0.16);
+  --parish-border: #EAE3CE;
+}
+
+/* 5. Sliha (Season of the Apostles) — Fiery Pentecost Crimson & Warm Cream */
+:root[data-theme="sliha"] {
+  --parish-canvas: #FBF9F7;
+  --parish-navy: #8B1E24;
+  --parish-navy-dark: #631217;
+  --parish-gold: #B45309;
+  --parish-gold-ink: #8B1E24;
+  --parish-gold-soft: #FEF2F2;
+  --parish-hero-badge-text: #FDE68A;
+  --parish-hero-badge-border: rgba(253, 230, 138, 0.42);
+  --parish-hero-badge-bg: rgba(253, 230, 138, 0.15);
+  --parish-border: #EADDDD;
+}
+
+/* 6. Qaita (Summer / Fruits of the Spirit) — Deep Emerald / Olive Green & Warm Sand */
+:root[data-theme="qaita"] {
+  --parish-canvas: #F8FAF8;
+  --parish-navy: #1B5E3A;
+  --parish-navy-dark: #124128;
+  --parish-gold: #9A6B11;
+  --parish-gold-ink: #166534;
+  --parish-gold-soft: #ECFDF3;
+  --parish-hero-badge-text: #BBF7D0;
+  --parish-hero-badge-border: rgba(187, 247, 208, 0.4);
+  --parish-hero-badge-bg: rgba(187, 247, 208, 0.14);
+  --parish-border: #DCE7DF;
+}
+
+/* 7. Elijah–Sliba–Moses — Warm Saffron Amber & Deep Maroon */
+:root[data-theme="elijah-sliba-moses"] {
+  --parish-canvas: #FBF8F6;
+  --parish-navy: #6E2323;
+  --parish-navy-dark: #4E1616;
+  --parish-gold: #C2590C;
+  --parish-gold-ink: #9A3412;
+  --parish-gold-soft: #FFF7ED;
+  --parish-hero-badge-text: #FED7AA;
+  --parish-hero-badge-border: rgba(254, 215, 170, 0.42);
+  --parish-hero-badge-bg: rgba(254, 215, 170, 0.15);
+  --parish-border: #EAE0D8;
+}
+
+/* 8. Mushah (Season of Moses) — Rich Terracotta, Warm Ochre & Charcoal */
+:root[data-theme="mushah"] {
+  --parish-canvas: #FAF8F6;
+  --parish-navy: #7C3A21;
+  --parish-navy-dark: #572716;
+  --parish-gold: #B45309;
+  --parish-gold-ink: #7C2D12;
+  --parish-gold-soft: #FDF3EC;
+  --parish-hero-badge-text: #FDE68A;
+  --parish-hero-badge-border: rgba(253, 230, 138, 0.4);
+  --parish-hero-badge-bg: rgba(253, 230, 138, 0.14);
+  --parish-border: #E8DFD8;
+}
+
+/* 9. Qudash Edta (Dedication of the Church) — Regal Burgundy / Imperial Purple & Gold */
+:root[data-theme="qudash-edta"] {
+  --parish-canvas: #FAF7F9;
+  --parish-navy: #581C4A;
+  --parish-navy-dark: #3D1133;
+  --parish-gold: #B8860B;
+  --parish-gold-ink: #701A5C;
+  --parish-gold-soft: #FAF0F7;
+  --parish-hero-badge-text: #FDE68A;
+  --parish-hero-badge-border: rgba(253, 230, 138, 0.42);
+  --parish-hero-badge-bg: rgba(253, 230, 138, 0.15);
+  --parish-border: #E8DCE5;
+}
+
+@theme inline {
+  --color-parish-canvas: var(--parish-canvas);
+  --color-parish-card: var(--parish-card);
+  --color-parish-navy: var(--parish-navy);
+  --color-parish-navy-dark: var(--parish-navy-dark);
+  --color-parish-gold: var(--parish-gold);
+  --color-parish-gold-ink: var(--parish-gold-ink);
+  --color-parish-gold-soft: var(--parish-gold-soft);
+  --color-parish-ink: var(--parish-ink);
+  --color-parish-muted: var(--parish-muted);
+  --color-parish-border: var(--parish-border);
 }
 
 @layer base {
   html {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background-color: #FAF8F5;
-    color: #1E293B;
+    background-color: var(--parish-canvas);
+    color: var(--parish-ink);
     -webkit-tap-highlight-color: transparent;
   }
 }

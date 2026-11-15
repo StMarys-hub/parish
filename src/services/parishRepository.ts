@@ -5,11 +5,15 @@ import {
 } from '../data/sampleData';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { sanitizeStorageFileName } from '../lib/sanitize';
+import { isValidThemeMode } from '../lib/themeEngine';
 import {
+  AdminRole,
   AdminUserProfile,
+  AppSettings,
   AuditLogEntry,
   ParishInfo,
   RegularScheduleItem,
+  ThemeMode,
   WeeklyBulletin,
 } from '../types/parish';
 
@@ -17,6 +21,7 @@ const CACHE_KEYS = {
   bulletins: 'parish_cache_bulletins_v1',
   schedules: 'parish_cache_schedules_v1',
   parishInfo: 'parish_cache_info_v1',
+  appSettings: 'parish_cache_app_settings_v1',
 } as const;
 
 function readCache<T>(key: string, fallback: T): T {
@@ -127,12 +132,14 @@ export async function getActiveAdminProfile(): Promise<AdminUserProfile | null> 
 
   const { data, error } = await supabase
     .from('admin_users')
-    .select('user_id, email, full_name, role, is_active')
+    .select('user_id, email, full_name, role, designation, invite_status, last_active_at, is_active')
     .eq('user_id', user.id)
     .eq('is_active', true)
     .maybeSingle();
 
   if (error || !data) return null;
+  // Best-effort activity touch (marks pending_invite -> active upon first sign-in)
+  void Promise.resolve(supabase.rpc('touch_admin_last_active')).catch(() => undefined);
   return data as AdminUserProfile;
 }
 
@@ -309,4 +316,152 @@ export async function fetchAuditLogs(limit = 50): Promise<AuditLogEntry[]> {
     .limit(limit);
   if (error) throw toError(error, 'Failed to load audit logs.');
   return (data ?? []) as AuditLogEntry[];
+}
+
+export async function deleteWeeklyBulletin(id: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase is not configured');
+  const { error } = await supabase.from('weekly_bulletins').delete().eq('id', id);
+  if (error) throw toError(error, 'Failed to delete bulletin (Super Admin / Vicar required).');
+}
+
+// ============================================================================
+// DYNAMIC LITURGICAL THEME SETTINGS
+// ============================================================================
+
+export async function fetchAppSettings(): Promise<AppSettings> {
+  const defaultSettings: AppSettings = { id: 1, theme_mode: 'auto' };
+  if (!supabase || !isSupabaseConfigured) {
+    return readCache<AppSettings>(CACHE_KEYS.appSettings, defaultSettings);
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('id, theme_mode, updated_at')
+      .eq('id', 1)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (data && isValidThemeMode(data.theme_mode)) {
+      const normalized: AppSettings = {
+        id: 1,
+        theme_mode: data.theme_mode,
+        updated_at: data.updated_at,
+      };
+      writeCache(CACHE_KEYS.appSettings, normalized);
+      return normalized;
+    }
+    return readCache<AppSettings>(CACHE_KEYS.appSettings, defaultSettings);
+  } catch {
+    return readCache<AppSettings>(CACHE_KEYS.appSettings, defaultSettings);
+  }
+}
+
+export async function updateThemeMode(themeMode: ThemeMode): Promise<AppSettings> {
+  if (!supabase || !isSupabaseConfigured) {
+    const local: AppSettings = {
+      id: 1,
+      theme_mode: themeMode,
+      updated_at: new Date().toISOString(),
+    };
+    writeCache(CACHE_KEYS.appSettings, local);
+    return local;
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase
+    .from('app_settings')
+    .upsert({
+      id: 1,
+      theme_mode: themeMode,
+      updated_by: user?.id ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .select('id, theme_mode, updated_at')
+    .single();
+
+  if (error) throw toError(error, 'Failed to save theme preference.');
+  const result = data as AppSettings;
+  writeCache(CACHE_KEYS.appSettings, result);
+  return result;
+}
+
+// ============================================================================
+// RBAC ADMIN USER & ROLE MANAGEMENT (EDGE FUNCTION BACKED)
+// ============================================================================
+
+export async function fetchAdminUsersRoster(): Promise<AdminUserProfile[]> {
+  if (!supabase || !isSupabaseConfigured) return [];
+  const { data, error } = await supabase.functions.invoke('admin-users', {
+    body: { action: 'list' },
+  });
+  if (error) throw await extractFunctionError(error, 'Failed to load admin users.');
+  return ((data as { users?: AdminUserProfile[] } | null)?.users ?? []) as AdminUserProfile[];
+}
+
+export async function inviteAdminUser(params: {
+  fullName: string;
+  email: string;
+  role: AdminRole;
+  designation?: string;
+}): Promise<AdminUserProfile> {
+  if (!supabase) throw new Error('Supabase is not configured');
+  const redirectTo =
+    typeof window !== 'undefined' ? `${window.location.origin}/#/admin` : undefined;
+  const { data, error } = await supabase.functions.invoke('admin-users', {
+    body: { action: 'invite', ...params, redirectTo },
+  });
+  if (error) throw await extractFunctionError(error, 'Failed to invite admin user.');
+  return (data as { user: AdminUserProfile }).user;
+}
+
+export async function updateAdminUserRole(params: {
+  targetUserId: string;
+  role: AdminRole;
+  designation?: string;
+  isActive?: boolean;
+}): Promise<AdminUserProfile> {
+  if (!supabase) throw new Error('Supabase is not configured');
+  const { data, error } = await supabase.functions.invoke('admin-users', {
+    body: { action: 'update_role', ...params },
+  });
+  if (error) throw await extractFunctionError(error, 'Failed to update admin role.');
+  return (data as { user: AdminUserProfile }).user;
+}
+
+export async function deleteAdminUser(targetUserId: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase is not configured');
+  const { error } = await supabase.functions.invoke('admin-users', {
+    body: { action: 'delete_user', targetUserId },
+  });
+  if (error) throw await extractFunctionError(error, 'Failed to remove admin user.');
+}
+
+export async function sendAdminPasswordReset(params: {
+  targetUserId: string;
+  targetEmail: string;
+}): Promise<void> {
+  if (!supabase) throw new Error('Supabase is not configured');
+  const redirectTo =
+    typeof window !== 'undefined' ? `${window.location.origin}/#/admin` : undefined;
+
+  const { error } = await supabase.auth.resetPasswordForEmail(params.targetEmail, {
+    redirectTo,
+  });
+  if (error) throw toError(error, 'Failed to send password reset email.');
+
+  // Record PASSWORD_RESET entry in immutable backend audit log (best-effort non-blocking on email delivery)
+  const { error: logErr } = await supabase.functions.invoke('admin-users', {
+    body: {
+      action: 'log_password_reset',
+      targetUserId: params.targetUserId,
+      targetEmail: params.targetEmail,
+    },
+  });
+  if (logErr) {
+    console.warn('Password reset email sent, audit log warning:', logErr.message);
+  }
 }
