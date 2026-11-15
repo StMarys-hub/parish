@@ -37,6 +37,9 @@ interface AdminPortalProps {
   regularSchedules: RegularScheduleItem[];
   parishInfo: ParishInfo;
   themeMode: ThemeMode;
+  initialRecoveryMode?: boolean;
+  initialAuthError?: string | null;
+  onRecoveryComplete?: () => void;
   onThemeUpdated: (nextMode: ThemeMode) => void;
   onDataChanged: () => void;
   onBackToApp: () => void;
@@ -47,6 +50,9 @@ export function AdminPortal({
   regularSchedules,
   parishInfo,
   themeMode,
+  initialRecoveryMode = false,
+  initialAuthError = null,
+  onRecoveryComplete,
   onThemeUpdated,
   onDataChanged,
   onBackToApp,
@@ -57,14 +63,20 @@ export function AdminPortal({
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(() => initialAuthError);
   const [authInfo, setAuthInfo] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
 
   // Password recovery flow when arriving via reset email link
-  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(() => initialRecoveryMode);
   const [newPassword, setNewPassword] = useState('');
   const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  useEffect(() => {
+    if (initialRecoveryMode) {
+      setRecoveryMode(true);
+    }
+  }, [initialRecoveryMode]);
 
   const [adminTab, setAdminTab] = useState<
     'composer' | 'schedules' | 'parish' | 'users' | 'theme' | 'audit'
@@ -145,7 +157,7 @@ export function AdminPortal({
         email: cleanEmail,
         options: {
           shouldCreateUser: false,
-          emailRedirectTo: `${window.location.origin}/#/admin`,
+          emailRedirectTo: `${window.location.origin}/?auth=admin`,
         },
       });
       if (error) throw error;
@@ -200,7 +212,7 @@ export function AdminPortal({
     setAuthInfo(null);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-        redirectTo: `${window.location.origin}/#/admin`,
+        redirectTo: `${window.location.origin}/?auth=admin`,
       });
       if (error) throw error;
       setAuthInfo(`Password reset link sent to ${cleanEmail}.`);
@@ -225,6 +237,7 @@ export function AdminPortal({
       setRecoveryMode(false);
       setNewPassword('');
       setAuthInfo('Password updated! You are signed in.');
+      onRecoveryComplete?.();
       await loadAdminState();
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : 'Failed to update password.');

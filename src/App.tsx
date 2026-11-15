@@ -14,6 +14,7 @@ import { AboutParishView } from './features/parish/AboutParishView';
 import { InstallShareBanner } from './features/pwa/InstallShareBanner';
 import { SchedulesView } from './features/schedules/SchedulesView';
 import { applyThemeToDocument, resolveActiveTheme } from './lib/themeEngine';
+import { initialAuthCallbackState, supabase } from './lib/supabase';
 import {
   fetchAppSettings,
   fetchParishInfo,
@@ -26,10 +27,10 @@ type AppTab = 'bulletin' | 'schedules' | 'about' | 'admin';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<AppTab>(() =>
-    window.location.hash.startsWith('#/admin') ||
-    (window.location.hash.includes('type=recovery') && window.location.hash.includes('access_token'))
-      ? 'admin'
-      : 'bulletin'
+    initialAuthCallbackState.openAdmin ? 'admin' : 'bulletin'
+  );
+  const [passwordRecoveryPending, setPasswordRecoveryPending] = useState<boolean>(
+    () => initialAuthCallbackState.isRecovery
   );
   const [bulletins, setBulletins] = useState<WeeklyBulletin[]>(SAMPLE_BULLETINS);
   const [bulletinSource, setBulletinSource] = useState<'live' | 'cache' | 'sample'>('sample');
@@ -74,18 +75,57 @@ export function App() {
   }, [loadAll]);
 
   useEffect(() => {
-    const onHashChange = () => {
+    if (!supabase) return;
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setPasswordRecoveryPending(true);
+        setActiveTab('admin');
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const onHashChange = (e: HashChangeEvent) => {
       if (window.location.hash.startsWith('#/admin')) {
         setActiveTab('admin');
-      } else if (activeTab === 'admin') {
+        return;
+      }
+      // Prevent Supabase clearing #access_token=... or #error=... from bouncing out of Admin recovery
+      if (
+        passwordRecoveryPending ||
+        e.oldURL.includes('access_token=') ||
+        e.oldURL.includes('error_description=') ||
+        e.oldURL.includes('type=recovery') ||
+        e.oldURL.includes('type=magiclink') ||
+        e.oldURL.includes('type=invite')
+      ) {
+        return;
+      }
+      if (activeTab === 'admin') {
         setActiveTab('bulletin');
       }
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
-  }, [activeTab]);
+  }, [activeTab, passwordRecoveryPending]);
 
   const navigate = (tab: AppTab) => {
+    if (tab !== 'admin') {
+      setPasswordRecoveryPending(false);
+    }
+    if (window.location.search.includes('auth=admin')) {
+      const nextParams = new URLSearchParams(window.location.search);
+      nextParams.delete('auth');
+      const nextSearch = nextParams.toString();
+      window.history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}`
+      );
+    }
     setActiveTab(tab);
     window.location.hash = tab === 'admin' ? '#/admin' : '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -201,6 +241,12 @@ export function App() {
               regularSchedules={regularSchedules}
               parishInfo={parishInfo}
               themeMode={themeMode}
+              initialRecoveryMode={passwordRecoveryPending}
+              initialAuthError={initialAuthCallbackState.errorDescription}
+              onRecoveryComplete={() => {
+                setPasswordRecoveryPending(false);
+                window.history.replaceState(null, '', `${window.location.pathname}#/admin`);
+              }}
               onThemeUpdated={(nextMode) => setThemeMode(nextMode)}
               onDataChanged={loadAll}
               onBackToApp={() => navigate('bulletin')}

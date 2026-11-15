@@ -410,7 +410,7 @@ export async function inviteAdminUser(params: {
 }): Promise<AdminUserProfile> {
   if (!supabase) throw new Error('Supabase is not configured');
   const redirectTo =
-    typeof window !== 'undefined' ? `${window.location.origin}/#/admin` : undefined;
+    typeof window !== 'undefined' ? `${window.location.origin}/?auth=admin` : undefined;
   const { data, error } = await supabase.functions.invoke('admin-users', {
     body: { action: 'invite', ...params, redirectTo },
   });
@@ -446,7 +446,7 @@ export async function sendAdminPasswordReset(params: {
 }): Promise<void> {
   if (!supabase) throw new Error('Supabase is not configured');
   const redirectTo =
-    typeof window !== 'undefined' ? `${window.location.origin}/#/admin` : undefined;
+    typeof window !== 'undefined' ? `${window.location.origin}/?auth=admin` : undefined;
 
   const { error } = await supabase.auth.resetPasswordForEmail(params.targetEmail, {
     redirectTo,
