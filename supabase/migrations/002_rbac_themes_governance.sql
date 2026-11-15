@@ -151,12 +151,16 @@ BEGIN
     END IF;
 
     -- Block self-deletion or self-deactivation
-    IF TG_OP = 'DELETE' AND OLD.user_id = v_uid THEN
-      RAISE EXCEPTION 'Cannot delete your own currently active admin account';
+    IF TG_OP = 'DELETE' THEN
+      IF OLD.user_id = v_uid THEN
+        RAISE EXCEPTION 'Cannot delete your own currently active admin account';
+      END IF;
     END IF;
 
-    IF TG_OP = 'UPDATE' AND OLD.user_id = v_uid AND NEW.is_active = false THEN
-      RAISE EXCEPTION 'Cannot deactivate your own currently active admin account';
+    IF TG_OP = 'UPDATE' THEN
+      IF OLD.user_id = v_uid AND NEW.is_active = false THEN
+        RAISE EXCEPTION 'Cannot deactivate your own currently active admin account';
+      END IF;
     END IF;
   END IF;
 
@@ -314,6 +318,7 @@ ALTER TABLE public.audit_logs
   );
 
 -- Update generic audit logger to emit THEME_CHANGE for app_settings and ignore touch_admin_last_active noise
+-- Uses to_jsonb(OLD/NEW) so table-specific columns (theme_mode, status) never fail PL/pgSQL record binding on other tables.
 CREATE OR REPLACE FUNCTION public.log_admin_mutation()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -327,8 +332,20 @@ DECLARE
   v_action TEXT := TG_OP;
   v_record_id TEXT;
   v_summary TEXT;
+  v_old_data JSONB;
+  v_new_data JSONB;
 BEGIN
-  IF TG_TABLE_NAME = 'app_settings' AND TG_OP = 'UPDATE' AND OLD.theme_mode IS NOT DISTINCT FROM NEW.theme_mode THEN
+  IF TG_OP IN ('UPDATE', 'DELETE') THEN
+    v_old_data := to_jsonb(OLD);
+  END IF;
+
+  IF TG_OP IN ('INSERT', 'UPDATE') THEN
+    v_new_data := to_jsonb(NEW);
+  END IF;
+
+  IF TG_TABLE_NAME = 'app_settings'
+     AND TG_OP = 'UPDATE'
+     AND (v_old_data ->> 'theme_mode') IS NOT DISTINCT FROM (v_new_data ->> 'theme_mode') THEN
     RETURN NEW;
   END IF;
 
@@ -342,23 +359,29 @@ BEGIN
 
   IF TG_OP = 'INSERT' THEN
     v_action := 'CREATE';
-    v_record_id := NEW.id::text;
+    v_record_id := COALESCE(v_new_data ->> 'id', v_new_data ->> 'user_id', '');
     v_summary := format('CREATE on %s (%s)', TG_TABLE_NAME, v_record_id);
   ELSIF TG_OP = 'UPDATE' THEN
-    v_record_id := NEW.id::text;
-    IF TG_TABLE_NAME = 'weekly_bulletins' AND OLD.status = 'draft' AND NEW.status = 'published' THEN
+    v_record_id := COALESCE(v_new_data ->> 'id', v_new_data ->> 'user_id', '');
+    IF TG_TABLE_NAME = 'weekly_bulletins'
+       AND (v_old_data ->> 'status') = 'draft'
+       AND (v_new_data ->> 'status') = 'published' THEN
       v_action := 'PUBLISH';
       v_summary := format('PUBLISH on %s (%s)', TG_TABLE_NAME, v_record_id);
     ELSIF TG_TABLE_NAME = 'app_settings' THEN
       v_action := 'THEME_CHANGE';
-      v_summary := format('Changed active theme from "%s" to "%s"', OLD.theme_mode, NEW.theme_mode);
+      v_summary := format(
+        'Changed active theme from "%s" to "%s"',
+        COALESCE(v_old_data ->> 'theme_mode', ''),
+        COALESCE(v_new_data ->> 'theme_mode', '')
+      );
     ELSE
       v_action := 'UPDATE';
       v_summary := format('UPDATE on %s (%s)', TG_TABLE_NAME, v_record_id);
     END IF;
   ELSIF TG_OP = 'DELETE' THEN
     v_action := 'DELETE';
-    v_record_id := OLD.id::text;
+    v_record_id := COALESCE(v_old_data ->> 'id', v_old_data ->> 'user_id', '');
     v_summary := format('DELETE on %s (%s)', TG_TABLE_NAME, v_record_id);
   END IF;
 
@@ -380,8 +403,8 @@ BEGIN
     TG_TABLE_NAME,
     v_record_id,
     v_summary,
-    CASE WHEN TG_OP IN ('UPDATE', 'DELETE') THEN to_jsonb(OLD) ELSE NULL END,
-    CASE WHEN TG_OP IN ('INSERT', 'UPDATE') THEN to_jsonb(NEW) ELSE NULL END
+    v_old_data,
+    v_new_data
   );
 
   RETURN COALESCE(NEW, OLD);
