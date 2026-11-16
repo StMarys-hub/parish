@@ -1,20 +1,22 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import {
   BookOpen,
   Calendar,
+  Check,
   ChevronDown,
   Church,
+  Flame,
   HeartHandshake,
   Link2,
   Megaphone,
   Paperclip,
   ShieldCheck,
-  Flame,
   Users,
 } from 'lucide-react';
 import { AttentionBadgesResult } from '../lib/announcementSignals';
 import { ReactionSummary, ReactionTargetType } from '../types/parish';
 import { ReactionButton } from './ReactionButton';
+import { SwipeableAnnouncementCard } from './SwipeableAnnouncementCard';
 import { UnreadDotBadge } from './UnreadDotBadge';
 
 interface CollapsibleAnnouncementCardProps {
@@ -27,6 +29,9 @@ interface CollapsibleAnnouncementCardProps {
   isExpanded: boolean;
   onToggle: () => void;
   unread?: boolean;
+  onDwellMarkRead?: () => void;
+  canMoveToRead?: boolean;
+  onMarkDoneAndMove?: () => void;
   badges?: AttentionBadgesResult;
   featuredLabel?: string | null;
   highlighted?: boolean;
@@ -70,7 +75,13 @@ function getAccentVisuals(categoryLabel: string, highlighted?: boolean) {
       Icon: Flame,
     };
   }
-  if (lower.includes('ward') || lower.includes('community') || lower.includes('ministry') || lower.includes('forum') || lower.includes('joseph')) {
+  if (
+    lower.includes('ward') ||
+    lower.includes('community') ||
+    lower.includes('ministry') ||
+    lower.includes('forum') ||
+    lower.includes('joseph')
+  ) {
     return {
       barClass: 'bg-teal-600',
       iconWrapClass: 'bg-teal-50 text-teal-800',
@@ -103,6 +114,9 @@ export function CollapsibleAnnouncementCard({
   isExpanded,
   onToggle,
   unread = false,
+  onDwellMarkRead,
+  canMoveToRead = false,
+  onMarkDoneAndMove,
   badges,
   featuredLabel,
   highlighted = false,
@@ -114,31 +128,78 @@ export function CollapsibleAnnouncementCard({
   const { barClass, iconWrapClass, pillClass, Icon } = getAccentVisuals(categoryLabel, highlighted);
   const reactionCount = reactionSummary?.count ?? 0;
 
-  return (
+  // Graceful 400ms badge fade-out after expanding / dwelling (>= 1.2s total transition)
+  const [dismissingBadge, setDismissingBadge] = useState(false);
+
+  useEffect(() => {
+    if (!isExpanded || !unread) {
+      setDismissingBadge(false);
+      return;
+    }
+
+    const fadeTimer = window.setTimeout(() => {
+      setDismissingBadge(true);
+    }, 800);
+
+    const commitTimer = window.setTimeout(() => {
+      onDwellMarkRead?.();
+      setDismissingBadge(false);
+    }, 1200);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(commitTimer);
+    };
+  }, [isExpanded, unread, onDwellMarkRead]);
+
+  const handleHeaderKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (!canMoveToRead || !onMarkDoneAndMove) return;
+    if (e.key === 'Delete' || e.key === 'm' || e.key === 'M') {
+      e.preventDefault();
+      onMarkDoneAndMove();
+    }
+  };
+
+  const isMutedRead = !unread && !highlighted && !isExpanded;
+  const showUnreadOrNew = unread || dismissingBadge;
+
+  const cardElement = (
     <article
-      className={`overflow-hidden rounded-2xl border bg-white shadow-2xs transition-shadow hover:shadow-sm ${
+      className={`overflow-hidden rounded-2xl border bg-white shadow-2xs transition-all hover:shadow-sm ${
         highlighted
           ? 'border-parish-gold/55 ring-1 ring-parish-gold/25'
           : unread
-            ? 'border-rose-200 ring-1 ring-rose-100'
-            : 'border-parish-border'
+            ? 'border-rose-200/90 ring-1 ring-rose-100'
+            : 'border-parish-border/80'
       }`}
     >
-      {/* Clickable Summary Header (Minimum 48px touch target, zero scroll jumps) */}
+      {/* Clickable Summary Header (Minimum 56px touch target, zero scroll jumps) */}
       <button
         type="button"
         aria-expanded={isExpanded}
         onClick={onToggle}
+        onKeyDown={handleHeaderKeyDown}
         className={`flex min-h-[56px] w-full items-stretch gap-3 px-3.5 py-3.5 text-left transition-colors sm:px-4 ${
-          highlighted && !isExpanded ? 'bg-parish-gold-soft/30 hover:bg-parish-gold-soft/45' : 'hover:bg-parish-canvas/55'
+          highlighted && !isExpanded
+            ? 'bg-parish-gold-soft/30 hover:bg-parish-gold-soft/45'
+            : isMutedRead
+              ? 'bg-parish-canvas/25 hover:bg-parish-canvas/55'
+              : 'hover:bg-parish-canvas/55'
         }`}
       >
-        {/* Pre-Attentive Left Accent Bar */}
-        <span className={`w-1 shrink-0 rounded-full ${barClass}`} aria-hidden="true" />
+        {/* Pre-Attentive Left Accent Bar (de-emphasized slightly when read) */}
+        <span
+          className={`w-1 shrink-0 rounded-full transition-opacity duration-300 ${barClass} ${
+            isMutedRead ? 'opacity-40' : 'opacity-100'
+          }`}
+          aria-hidden="true"
+        />
 
         {/* Category / Ministry Icon */}
         <span
-          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${iconWrapClass}`}
+          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-opacity duration-300 ${iconWrapClass} ${
+            isMutedRead ? 'opacity-70' : 'opacity-100'
+          }`}
           aria-hidden="true"
         >
           <Icon className="h-4 w-4" />
@@ -148,7 +209,13 @@ export function CollapsibleAnnouncementCard({
         <div className="min-w-0 flex-1 space-y-1">
           {/* Top Micro-Badge Row */}
           <div className="flex flex-wrap items-center gap-1.5">
-            {unread && <UnreadDotBadge unread={true} />}
+            {showUnreadOrNew && (
+              <UnreadDotBadge
+                unread={unread}
+                dismissing={dismissingBadge}
+                showNewPill={true}
+              />
+            )}
             {featuredLabel && (
               <span className="rounded-full bg-parish-navy px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
                 {featuredLabel}
@@ -157,11 +224,6 @@ export function CollapsibleAnnouncementCard({
             <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${pillClass}`}>
               {categoryLabel}
             </span>
-            {badges?.isNew48h && !unread && (
-              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                NEW
-              </span>
-            )}
             {badges?.urgencyLabel && (
               <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-900">
                 {badges.urgencyLabel}
@@ -174,8 +236,12 @@ export function CollapsibleAnnouncementCard({
             )}
           </div>
 
-          {/* High-Contrast Bold Title */}
-          <h3 className="line-clamp-2 text-[16px] font-bold leading-snug text-parish-ink sm:text-[17px]">
+          {/* Title (Pre-attentive bold weight when unread; slightly lighter weight once read) */}
+          <h3
+            className={`line-clamp-2 text-[16px] leading-snug sm:text-[17px] ${
+              isMutedRead ? 'font-semibold text-parish-ink/85' : 'font-bold text-parish-ink'
+            }`}
+          >
             {title}
           </h3>
 
@@ -225,19 +291,46 @@ export function CollapsibleAnnouncementCard({
           <div className="border-t border-parish-border/80 px-4 pb-4 pt-3 sm:px-5">
             {children}
 
-            {reactionTargetType && onToggleReaction && (
-              <div className="mt-4 flex justify-end border-t border-parish-border/60 pt-3">
-                <ReactionButton
-                  targetType={reactionTargetType}
-                  targetId={id}
-                  summary={reactionSummary}
-                  onToggle={onToggleReaction}
-                />
+            {(reactionTargetType || (canMoveToRead && onMarkDoneAndMove)) && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-parish-border/60 pt-3">
+                <div>
+                  {canMoveToRead && onMarkDoneAndMove && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMarkDoneAndMove();
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-parish-border bg-parish-canvas px-3 py-1 text-xs font-semibold text-parish-navy transition-colors hover:bg-parish-navy hover:text-white"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      Done / Move to Bottom
+                    </button>
+                  )}
+                </div>
+
+                {reactionTargetType && onToggleReaction && (
+                  <ReactionButton
+                    targetType={reactionTargetType}
+                    targetId={id}
+                    summary={reactionSummary}
+                    onToggle={onToggleReaction}
+                  />
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
     </article>
+  );
+
+  return (
+    <SwipeableAnnouncementCard
+      enabled={Boolean(canMoveToRead && onMarkDoneAndMove)}
+      onSwipeDone={() => onMarkDoneAndMove?.()}
+    >
+      {cardElement}
+    </SwipeableAnnouncementCard>
   );
 }

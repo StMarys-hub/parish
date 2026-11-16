@@ -201,7 +201,51 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .parish-accordion-panel {
+  .parish-accordion-panel,
+  .parish-badge-fade,
+  .parish-swipe-collapse {
     transition: none;
   }
+}
+
+/* Smooth 400ms dismissal fade-out for green NEW badge & unread dot */
+.parish-badge-fade {
+  display: inline-flex;
+  max-width: 140px;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 400ms ease,
+    transform 400ms ease,
+    max-width 400ms ease,
+    margin 400ms ease,
+    padding 400ms ease;
+}
+
+.parish-badge-fade[data-dismissing='true'] {
+  opacity: 0;
+  transform: scale(0.85);
+  max-width: 0;
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-color: transparent;
+}
+
+/* Smooth collapse when a swiped card exits to the bottom Read section */
+.parish-swipe-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+}
+
+.parish-swipe-collapse[data-collapsing='true'] {
+  grid-template-rows: 0fr;
+  opacity: 0;
 }

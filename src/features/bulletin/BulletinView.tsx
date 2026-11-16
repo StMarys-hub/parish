@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
   CheckCheck,
+  CheckCircle2,
   ChevronDown,
   ChevronsUpDown,
   ChevronUp,
@@ -11,6 +12,7 @@ import {
   FolderOpen,
   Image as ImageIcon,
   MapPin,
+  RotateCcw,
 } from 'lucide-react';
 import { CollapsibleAnnouncementCard } from '../../components/CollapsibleAnnouncementCard';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
@@ -19,6 +21,7 @@ import { PHASE_FLAGS } from '../../config/features';
 import { computeAttentionBadges } from '../../lib/announcementSignals';
 import { useReadAnnouncements } from '../../lib/readReceipts';
 import { sanitizeActionUrl } from '../../lib/sanitize';
+import { useSmartAnnouncementOrder } from '../../lib/useSmartAnnouncementOrder';
 import {
   fetchReactionSummaries,
   ReactionMap,
@@ -83,7 +86,8 @@ export function BulletinView({
   const [selectedCategory, setSelectedCategory] = useState<
     'All' | 'Ministry' | AnnouncementCategory
   >('All');
-  const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(() => new Set());
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
+  const [deferredMoveKeys, setDeferredMoveKeys] = useState<Set<string>>(() => new Set());
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [lightboxFlyer, setLightboxFlyer] = useState<{
     title: string;
@@ -91,7 +95,7 @@ export function BulletinView({
     mimeType?: string | null;
   } | null>(null);
   const [reactions, setReactions] = useState<ReactionMap>({});
-  const { isUnread, markRead, markManyRead } = useReadAnnouncements();
+  const { isUnread, markRead, markManyRead, resetAllRead } = useReadAnnouncements();
 
   useEffect(() => {
     if (!PHASE_FLAGS.reactions) return;
@@ -151,6 +155,15 @@ export function BulletinView({
     return sorted.filter((a) => a.category === selectedCategory);
   }, [activeBulletin, selectedCategory]);
 
+  const { unreadItems: unreadAnnouncements, readItems: readAnnouncements } =
+    useSmartAnnouncementOrder(
+      visibleAnnouncements,
+      (c) => `bulletin:${c.id}`,
+      isUnread,
+      expandedKeys,
+      deferredMoveKeys
+    );
+
   const unreadMinistryCount = useMemo(
     () => ministryUpdates.filter((m) => isUnread(`ministry:${m.id}`)).length,
     [ministryUpdates, isUnread]
@@ -166,29 +179,68 @@ export function BulletinView({
 
   const allVisibleExpanded =
     visibleAnnouncements.length > 0 &&
-    visibleAnnouncements.every((c) => expandedCardIds.has(c.id));
+    visibleAnnouncements.every((c) => expandedKeys.has(`bulletin:${c.id}`));
 
-  const toggleCardExpand = (cardId: string, readKey: string) => {
-    setExpandedCardIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(cardId)) {
-        next.delete(cardId);
-      } else {
-        next.add(cardId);
-        markRead(readKey);
+  const toggleCardExpand = (readKey: string) => {
+    const isCurrentlyOpen = expandedKeys.has(readKey);
+    if (isCurrentlyOpen) {
+      // Collapse: commit read state and allow smart sort to move to Read section cleanly
+      setExpandedKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(readKey);
+        return next;
+      });
+      setDeferredMoveKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(readKey);
+        return next;
+      });
+      markRead(readKey);
+    } else {
+      // Expand: keep anchored in top position while user reads (badge fades via 1.2s dwell)
+      setExpandedKeys((prev) => new Set(prev).add(readKey));
+      if (isUnread(readKey)) {
+        setDeferredMoveKeys((prev) => new Set(prev).add(readKey));
       }
-      return next;
-    });
+    }
   };
+
+  const handleDwellMarkRead = useCallback(
+    (readKey: string) => {
+      setDeferredMoveKeys((prev) => new Set(prev).add(readKey));
+      markRead(readKey);
+    },
+    [markRead]
+  );
+
+  const handleMarkDoneAndMove = useCallback(
+    (readKey: string) => {
+      setExpandedKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(readKey);
+        return next;
+      });
+      setDeferredMoveKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(readKey);
+        return next;
+      });
+      markRead(readKey);
+    },
+    [markRead]
+  );
 
   const toggleExpandAllVisible = () => {
     if (allVisibleExpanded) {
-      setExpandedCardIds(new Set());
-    } else {
-      setExpandedCardIds(new Set(visibleAnnouncements.map((c) => c.id)));
+      setExpandedKeys(new Set());
+      setDeferredMoveKeys(new Set());
       if (unreadVisibleKeys.length > 0) {
         markManyRead(unreadVisibleKeys);
       }
+    } else {
+      const allKeys = visibleAnnouncements.map((c) => `bulletin:${c.id}`);
+      setExpandedKeys(new Set(allKeys));
+      setDeferredMoveKeys(new Set(allKeys));
     }
   };
 
@@ -251,7 +303,8 @@ export function BulletinView({
                 onChange={(e) => {
                   setSelectedWeekIndex(Number(e.target.value));
                   setSelectedCategory('All');
-                  setExpandedCardIds(new Set());
+                  setExpandedKeys(new Set());
+                  setDeferredMoveKeys(new Set());
                 }}
                 className="rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-xs focus:outline-none focus:ring-2 focus:ring-white/40"
               >
@@ -397,14 +450,17 @@ export function BulletinView({
             isUnread={isUnread}
             onMarkRead={markRead}
             onMarkAllRead={markManyRead}
+            onResetAllRead={resetAllRead}
           />
         </ErrorBoundary>
       ) : (
         <div className="space-y-2.5">
-          {visibleAnnouncements.map((card) => {
+          {[
+            ...unreadAnnouncements.map((card) => ({ card, inReadSection: false })),
+          ].map(({ card }) => {
             const readKey = `bulletin:${card.id}`;
             const unread = PHASE_FLAGS.unreadIndicators && isUnread(readKey);
-            const isExpanded = expandedCardIds.has(card.id);
+            const isExpanded = expandedKeys.has(readKey);
             const badges = computeAttentionBadges({
               postedAtIso: activeBulletin.published_at || activeBulletin.updated_at,
               dateTimeLabel: card.dateTimeLabel,
@@ -423,13 +479,16 @@ export function BulletinView({
                 dateTimeLabel={card.dateTimeLabel}
                 locationLabel={card.locationLabel}
                 isExpanded={isExpanded}
-                onToggle={() => toggleCardExpand(card.id, readKey)}
+                onToggle={() => toggleCardExpand(readKey)}
                 unread={unread}
+                onDwellMarkRead={() => handleDwellMarkRead(readKey)}
+                canMoveToRead={true}
+                onMarkDoneAndMove={() => handleMarkDoneAndMove(readKey)}
                 badges={badges}
                 reactionTargetType={PHASE_FLAGS.reactions ? 'bulletin' : undefined}
                 reactionSummary={reactions[reactionKey('bulletin', card.id)]}
                 onToggleReaction={(t, id) => {
-                  markRead(readKey);
+                  handleDwellMarkRead(readKey);
                   handleToggleReaction(t, id);
                 }}
               >
@@ -466,7 +525,7 @@ export function BulletinView({
                             key={idx}
                             type="button"
                             onClick={() => {
-                              markRead(readKey);
+                              handleDwellMarkRead(readKey);
                               setLightboxFlyer({
                                 title: action.label || card.title,
                                 url: safeUrl,
@@ -487,7 +546,7 @@ export function BulletinView({
                           href={safeUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          onClick={() => markRead(readKey)}
+                          onClick={() => handleDwellMarkRead(readKey)}
                           className="inline-flex items-center gap-2 rounded-xl bg-parish-navy px-3.5 py-2 text-sm font-semibold text-white shadow-2xs hover:bg-parish-navy-dark"
                         >
                           {getActionIcon(action.kind)}
@@ -500,6 +559,121 @@ export function BulletinView({
               </CollapsibleAnnouncementCard>
             );
           })}
+
+          {readAnnouncements.length > 0 && (
+            <div className="space-y-2.5 pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-parish-border pt-3">
+                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-parish-muted">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-parish-navy" />
+                  <span>Read Announcements ({readAnnouncements.length})</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeferredMoveKeys(new Set());
+                    resetAllRead();
+                  }}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-parish-navy underline hover:opacity-80"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Reset Read Status
+                </button>
+              </div>
+
+              {readAnnouncements.map((card) => {
+                const readKey = `bulletin:${card.id}`;
+                const isExpanded = expandedKeys.has(readKey);
+                const badges = computeAttentionBadges({
+                  postedAtIso: activeBulletin.published_at || activeBulletin.updated_at,
+                  dateTimeLabel: card.dateTimeLabel,
+                  title: card.title,
+                  body: card.body,
+                  actions: card.actions,
+                });
+
+                return (
+                  <CollapsibleAnnouncementCard
+                    key={card.id}
+                    id={card.id}
+                    title={card.title}
+                    previewText={card.body}
+                    categoryLabel={card.category}
+                    dateTimeLabel={card.dateTimeLabel}
+                    locationLabel={card.locationLabel}
+                    isExpanded={isExpanded}
+                    onToggle={() => toggleCardExpand(readKey)}
+                    unread={false}
+                    canMoveToRead={false}
+                    badges={badges}
+                    reactionTargetType={PHASE_FLAGS.reactions ? 'bulletin' : undefined}
+                    reactionSummary={reactions[reactionKey('bulletin', card.id)]}
+                    onToggleReaction={handleToggleReaction}
+                  >
+                    {(card.dateTimeLabel || card.locationLabel) && (
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {card.dateTimeLabel && (
+                          <span className="inline-flex items-center gap-1 rounded-lg bg-parish-canvas px-2.5 py-1 text-xs font-medium text-parish-navy">
+                            <Calendar className="h-3.5 w-3.5 text-parish-gold" />
+                            {card.dateTimeLabel}
+                          </span>
+                        )}
+                        {card.locationLabel && (
+                          <span className="inline-flex items-center gap-1 rounded-lg bg-parish-canvas px-2.5 py-1 text-xs font-medium text-parish-muted">
+                            <MapPin className="h-3.5 w-3.5 text-parish-navy" />
+                            {card.locationLabel}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    <p className="whitespace-pre-line text-base leading-[1.6] text-parish-ink">
+                      {card.body}
+                    </p>
+
+                    {card.actions.length > 0 && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {card.actions.map((action, idx) => {
+                          const safeUrl = sanitizeActionUrl(action.url);
+                          if (!safeUrl) return null;
+                          if (action.kind === 'flyer') {
+                            return (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() =>
+                                  setLightboxFlyer({
+                                    title: action.label || card.title,
+                                    url: safeUrl,
+                                    mimeType: action.mimeType,
+                                  })
+                                }
+                                className="inline-flex items-center gap-2 rounded-xl border border-parish-navy/20 bg-parish-navy/5 px-3.5 py-2 text-sm font-semibold text-parish-navy hover:bg-parish-navy/10"
+                              >
+                                {getActionIcon(action.kind)}
+                                {action.label}
+                              </button>
+                            );
+                          }
+                          return (
+                            <a
+                              key={idx}
+                              href={safeUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 rounded-xl bg-parish-navy px-3.5 py-2 text-sm font-semibold text-white shadow-2xs hover:bg-parish-navy-dark"
+                            >
+                              {getActionIcon(action.kind)}
+                              {action.label}
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CollapsibleAnnouncementCard>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

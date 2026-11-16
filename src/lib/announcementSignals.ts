@@ -129,7 +129,8 @@ export function computeAttentionBadges(input: {
     const postedMs = Date.parse(input.postedAtIso);
     if (Number.isFinite(postedMs)) {
       const ageHours = (nowMs - postedMs) / MS_PER_HOUR;
-      isNew48h = ageHours >= -2 && ageHours <= 48;
+      // Within last 72 hours per progressive disclosure NEW badge lifecycle
+      isNew48h = ageHours >= -2 && ageHours <= 72;
     }
   }
 
