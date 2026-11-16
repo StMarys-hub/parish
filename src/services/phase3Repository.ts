@@ -45,7 +45,16 @@ function getEdgeFunctionEndpoint(name: string): { url: string; anonKey: string }
 async function readAuthHeader(): Promise<string | null> {
   if (!supabase) return null;
   const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ? `Bearer ${data.session.access_token}` : null;
+  const session = data.session;
+  if (!session) return null;
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (session.expires_at && session.expires_at - nowSec < 60) {
+    const { data: refreshed } = await supabase.auth.refreshSession();
+    return refreshed.session?.access_token
+      ? `Bearer ${refreshed.session.access_token}`
+      : `Bearer ${session.access_token}`;
+  }
+  return `Bearer ${session.access_token}`;
 }
 
 // ============================================================================

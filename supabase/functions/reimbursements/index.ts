@@ -116,7 +116,18 @@ function verifyMagicBytes(bytes: Uint8Array, mimeType: string): boolean {
     );
   }
   if (mimeType === "application/pdf") {
-    return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+    const limit = Math.min(bytes.length - 4, 1024);
+    for (let i = 0; i <= limit; i++) {
+      if (
+        bytes[i] === 0x25 &&
+        bytes[i + 1] === 0x50 &&
+        bytes[i + 2] === 0x44 &&
+        bytes[i + 3] === 0x46
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
   return false;
 }

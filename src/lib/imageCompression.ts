@@ -1,8 +1,7 @@
-const ALLOWED_RECEIPT_TYPES = new Set([
+const DIRECT_PASSTHROUGH_IMAGE_TYPES = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
-  'application/pdf',
 ]);
 
 export const MAX_RECEIPT_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -12,6 +11,19 @@ export interface CompressedReceiptResult {
   originalBytes: number;
   finalBytes: number;
   wasCompressed: boolean;
+}
+
+export function resolveReceiptMimeType(file: File): string {
+  const explicit = (file.type || '').toLowerCase().trim();
+  if (explicit) return explicit;
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+  if (name.endsWith('.png')) return 'image/png';
+  if (name.endsWith('.webp')) return 'image/webp';
+  if (name.endsWith('.pdf')) return 'application/pdf';
+  if (name.endsWith('.heic')) return 'image/heic';
+  if (name.endsWith('.heif')) return 'image/heif';
+  return '';
 }
 
 function loadImageFromFile(file: File): Promise<HTMLImageElement> {
@@ -35,25 +47,47 @@ function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string, quality: numb
 }
 
 /**
- * Validates receipt mime type & size (<= 5 MB), and compresses raster images client-side
- * on an offscreen canvas (max 1600px, targeting readable mobile uploads under ~1 MB).
+ * Validates receipt mime type & size (<= 5 MB), converts HEIC/HEIF or large raster images
+ * client-side on an offscreen canvas (max 1600px) to compact JPG/WEBP, and passes PDFs cleanly.
  */
 export async function prepareReceiptUploadFile(file: File): Promise<CompressedReceiptResult> {
-  if (!ALLOWED_RECEIPT_TYPES.has(file.type)) {
-    throw new Error('Please upload a JPG, PNG, WEBP image or PDF receipt (max 5 MB).');
+  const mimeType = resolveReceiptMimeType(file);
+  const isPdf = mimeType === 'application/pdf';
+  const isImage = mimeType.startsWith('image/');
+
+  if (!isPdf && !isImage) {
+    throw new Error('Please upload a JPG, PNG, WEBP, HEIC image or PDF receipt (max 5 MB).');
   }
 
   const originalBytes = file.size;
-  if (file.type === 'application/pdf') {
+  if (isPdf) {
     if (originalBytes > MAX_RECEIPT_BYTES) {
       throw new Error('PDF receipt exceeds the 5 MB limit. Please upload a smaller PDF.');
     }
-    return { file, originalBytes, finalBytes: originalBytes, wasCompressed: false };
+    const normalizedPdf =
+      file.type === 'application/pdf'
+        ? file
+        : new File([file], file.name || 'receipt.pdf', { type: 'application/pdf' });
+    return {
+      file: normalizedPdf,
+      originalBytes,
+      finalBytes: originalBytes,
+      wasCompressed: false,
+    };
   }
 
-  // Skip compression if already tiny (< 220 KB)
-  if (originalBytes <= 220 * 1024) {
-    return { file, originalBytes, finalBytes: originalBytes, wasCompressed: false };
+  const needsFormatConversion = !DIRECT_PASSTHROUGH_IMAGE_TYPES.has(mimeType);
+
+  // Skip canvas pass ONLY if already JPG/PNG/WEBP and tiny (< 220 KB)
+  if (!needsFormatConversion && originalBytes <= 220 * 1024) {
+    const normalizedFile =
+      file.type === mimeType ? file : new File([file], file.name || 'receipt.jpg', { type: mimeType });
+    return {
+      file: normalizedFile,
+      originalBytes,
+      finalBytes: originalBytes,
+      wasCompressed: false,
+    };
   }
 
   try {
@@ -68,8 +102,8 @@ export async function prepareReceiptUploadFile(file: File): Promise<CompressedRe
     canvas.height = targetH;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      if (originalBytes > MAX_RECEIPT_BYTES) {
-        throw new Error('Image exceeds 5 MB and canvas compression is unavailable.');
+      if (needsFormatConversion || originalBytes > MAX_RECEIPT_BYTES) {
+        throw new Error('Image could not be converted in this browser. Please upload JPG, PNG, or PDF.');
       }
       return { file, originalBytes, finalBytes: originalBytes, wasCompressed: false };
     }
@@ -78,46 +112,51 @@ export async function prepareReceiptUploadFile(file: File): Promise<CompressedRe
     ctx.fillRect(0, 0, targetW, targetH);
     ctx.drawImage(img, 0, 0, targetW, targetH);
 
-    // Output JPEG or WEBP so PNG receipt screenshots compress cleanly too
-    const targetMime = file.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
+    const targetMime = mimeType === 'image/webp' ? 'image/webp' : 'image/jpeg';
     const ext = targetMime === 'image/webp' ? 'webp' : 'jpg';
     const baseName = file.name.replace(/\.[^.]+$/, '') || 'receipt';
 
     let bestBlob: Blob | null = null;
-    for (const quality of [0.82, 0.68, 0.54]) {
+    for (const quality of [0.84, 0.7, 0.56]) {
       const candidate = await canvasToBlob(canvas, targetMime, quality);
       if (!candidate) continue;
       bestBlob = candidate;
       if (candidate.size <= 1.2 * 1024 * 1024) break;
     }
 
-    if (bestBlob && bestBlob.size < originalBytes && bestBlob.size <= MAX_RECEIPT_BYTES) {
+    if (
+      bestBlob &&
+      bestBlob.size <= MAX_RECEIPT_BYTES &&
+      (needsFormatConversion || bestBlob.size < originalBytes || originalBytes > MAX_RECEIPT_BYTES)
+    ) {
       const compressedFile = new File([bestBlob], `${baseName}.${ext}`, { type: targetMime });
       return {
         file: compressedFile,
         originalBytes,
         finalBytes: compressedFile.size,
-        wasCompressed: true,
+        wasCompressed: compressedFile.size < originalBytes,
       };
     }
-
-    if (bestBlob && bestBlob.size <= MAX_RECEIPT_BYTES && originalBytes > MAX_RECEIPT_BYTES) {
-      const compressedFile = new File([bestBlob], `${baseName}.${ext}`, { type: targetMime });
-      return {
-        file: compressedFile,
-        originalBytes,
-        finalBytes: compressedFile.size,
-        wasCompressed: true,
-      };
+  } catch (err) {
+    if (needsFormatConversion) {
+      throw new Error(
+        'This photo format (e.g. HEIC) could not be converted in this browser. Try JPG, PNG, or PDF.'
+      );
     }
-  } catch {
     if (originalBytes > MAX_RECEIPT_BYTES) {
-      throw new Error('Image exceeds 5 MB and could not be compressed automatically.');
+      throw err instanceof Error
+        ? err
+        : new Error('Image exceeds 5 MB and could not be compressed automatically.');
     }
   }
 
+  if (needsFormatConversion) {
+    throw new Error('Unsupported image format. Please upload JPG, PNG, WEBP, or PDF.');
+  }
   if (originalBytes > MAX_RECEIPT_BYTES) {
     throw new Error('Receipt file exceeds the 5 MB limit.');
   }
-  return { file, originalBytes, finalBytes: originalBytes, wasCompressed: false };
+  const safeFile =
+    file.type === mimeType ? file : new File([file], file.name || 'receipt.jpg', { type: mimeType });
+  return { file: safeFile, originalBytes, finalBytes: originalBytes, wasCompressed: false };
 }

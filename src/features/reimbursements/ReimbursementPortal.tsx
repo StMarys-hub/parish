@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -62,17 +62,22 @@ export function ReimbursementPortal({ onBackToParish }: ReimbursementPortalProps
   const [subTab, setSubTab] = useState<'submit' | 'tracker'>('submit');
   const [claims, setClaims] = useState<ReimbursementClaim[]>([]);
   const [loadingClaims, setLoadingClaims] = useState(false);
+  const currentUserIdRef = useRef<string | null>(null);
 
-  const loadPortalData = useCallback(async () => {
+  const loadPortalData = useCallback(async (isInitialBoot = false) => {
     if (!supabase || !isSupabaseConfigured) {
       setCheckingAuth(false);
       return;
     }
-    setCheckingAuth(true);
+    if (isInitialBoot) {
+      setCheckingAuth(true);
+    }
     setAuthError(null);
     try {
       const { data } = await supabase.auth.getUser();
+      const userId = data.user?.id ?? null;
       const userEmail = data.user?.email ?? null;
+      currentUserIdRef.current = userId;
       setSignedInEmail(userEmail);
 
       if (userEmail) {
@@ -94,12 +99,25 @@ export function ReimbursementPortal({ onBackToParish }: ReimbursementPortalProps
   }, []);
 
   useEffect(() => {
-    loadPortalData();
+    loadPortalData(true);
     if (!supabase) return;
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      loadPortalData();
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      const nextUid = session?.user?.id ?? null;
+      // Do NOT re-trigger full checkingAuth or reload when OS file picker triggers tab focus TOKEN_REFRESHED
+      if (event === 'TOKEN_REFRESHED' || (nextUid && nextUid === currentUserIdRef.current)) {
+        return;
+      }
+      if (event === 'SIGNED_OUT') {
+        currentUserIdRef.current = null;
+        setSignedInEmail(null);
+        setAccessStatus(null);
+        setClaims([]);
+        setCheckingAuth(false);
+        return;
+      }
+      loadPortalData(false);
     });
     return () => subscription.unsubscribe();
   }, [loadPortalData]);

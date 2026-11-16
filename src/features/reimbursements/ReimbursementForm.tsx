@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle2, FileCheck2, KeyRound, Lock, Receipt, ShieldAlert, Upload } from 'lucide-react';
-import { MAX_RECEIPT_BYTES } from '../../lib/imageCompression';
+import { MAX_RECEIPT_BYTES, resolveReceiptMimeType } from '../../lib/imageCompression';
 import {
   submitReimbursementRequest,
   verifyReimbursementParishPin,
@@ -18,25 +18,64 @@ interface ReimbursementFormProps {
   onSubmitted: (claim: ReimbursementClaim) => void;
 }
 
+interface DraftFields {
+  fullName: string;
+  contactInfo: string;
+  ministry: string;
+  customMinistry: string;
+  expenseDate: string;
+  amountDollars: string;
+  description: string;
+  payoutMethod: PayoutMethod;
+}
+
+const DRAFT_STORAGE_KEY = 'parish_reimb_draft_v1';
+
 const PAYOUT_METHODS: readonly PayoutMethod[] = [
   'Check',
   'Zelle',
   'Direct Reimbursement',
 ];
 
+function loadSavedDraft(defaultEmail: string): DraftFields {
+  const defaults: DraftFields = {
+    fullName: '',
+    contactInfo: defaultEmail,
+    ministry: PARISH_MINISTRIES[0],
+    customMinistry: '',
+    expenseDate: new Date().toISOString().slice(0, 10),
+    amountDollars: '',
+    description: '',
+    payoutMethod: 'Check',
+  };
+  try {
+    const raw = sessionStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw) as Partial<DraftFields>;
+    return {
+      ...defaults,
+      ...parsed,
+      contactInfo: parsed.contactInfo || defaultEmail,
+    };
+  } catch {
+    return defaults;
+  }
+}
+
 export function ReimbursementForm({
   accessStatus,
   onAccessVerified,
   onSubmitted,
 }: ReimbursementFormProps) {
-  const [fullName, setFullName] = useState('');
-  const [contactInfo, setContactInfo] = useState(accessStatus.email || '');
-  const [ministry, setMinistry] = useState<string>(PARISH_MINISTRIES[0]);
-  const [customMinistry, setCustomMinistry] = useState('');
-  const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [amountDollars, setAmountDollars] = useState('');
-  const [description, setDescription] = useState('');
-  const [payoutMethod, setPayoutMethod] = useState<PayoutMethod>('Check');
+  const [initial] = useState<DraftFields>(() => loadSavedDraft(accessStatus.email || ''));
+  const [fullName, setFullName] = useState(initial.fullName);
+  const [contactInfo, setContactInfo] = useState(initial.contactInfo);
+  const [ministry, setMinistry] = useState<string>(initial.ministry);
+  const [customMinistry, setCustomMinistry] = useState(initial.customMinistry);
+  const [expenseDate, setExpenseDate] = useState(initial.expenseDate);
+  const [amountDollars, setAmountDollars] = useState(initial.amountDollars);
+  const [description, setDescription] = useState(initial.description);
+  const [payoutMethod, setPayoutMethod] = useState<PayoutMethod>(initial.payoutMethod);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [companyWebsite, setCompanyWebsite] = useState(''); // Anti-bot honeypot
 
@@ -50,6 +89,34 @@ export function ReimbursementForm({
     referenceCode: string;
     compressionNote: string | null;
   } | null>(null);
+
+  // Persist typed form draft across mobile camera/file picker focus transitions
+  useEffect(() => {
+    try {
+      const snapshot: DraftFields = {
+        fullName,
+        contactInfo,
+        ministry,
+        customMinistry,
+        expenseDate,
+        amountDollars,
+        description,
+        payoutMethod,
+      };
+      sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(snapshot));
+    } catch {
+      // Ignore storage quota issues
+    }
+  }, [
+    fullName,
+    contactInfo,
+    ministry,
+    customMinistry,
+    expenseDate,
+    amountDollars,
+    description,
+    payoutMethod,
+  ]);
 
   const handleUnlockPin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,13 +209,13 @@ export function ReimbursementForm({
       setReceiptFile(null);
       return;
     }
-    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-    if (!allowed.includes(file.type)) {
-      setError('Unsupported file format. Please upload JPG, PNG, WEBP, or PDF.');
+    const mime = resolveReceiptMimeType(file);
+    if (mime !== 'application/pdf' && !mime.startsWith('image/')) {
+      setError('Unsupported file format. Please choose a photo (JPG, PNG, WEBP, HEIC) or PDF.');
       e.target.value = '';
       return;
     }
-    if (file.type === 'application/pdf' && file.size > MAX_RECEIPT_BYTES) {
+    if (mime === 'application/pdf' && file.size > MAX_RECEIPT_BYTES) {
       setError('PDF exceeds 5 MB limit. Please upload a smaller file.');
       e.target.value = '';
       return;
@@ -199,6 +266,11 @@ export function ReimbursementForm({
       setAmountDollars('');
       setDescription('');
       setReceiptFile(null);
+      try {
+        sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch {
+        // Ignore
+      }
       const fileInput = document.getElementById('reimbursement-receipt-input') as HTMLInputElement | null;
       if (fileInput) fileInput.value = '';
     } catch (err) {
@@ -381,7 +453,7 @@ export function ReimbursementForm({
 
         <div>
           <label className="block text-xs font-semibold text-parish-muted">
-            Receipt Upload (JPG, PNG, WEBP, PDF • Max 5 MB) *
+            Receipt Upload (Photo, JPG, PNG, PDF • Max 5 MB) *
           </label>
           <label
             htmlFor="reimbursement-receipt-input"
@@ -389,14 +461,14 @@ export function ReimbursementForm({
           >
             {receiptFile ? (
               <>
-                <FileCheck2 className="h-4 w-4 text-emerald-700" />
+                <FileCheck2 className="h-4 w-4 shrink-0 text-emerald-700" />
                 <span className="truncate">
-                  {receiptFile.name} ({Math.round(receiptFile.size / 1024)} KB)
+                  {receiptFile.name} ({Math.max(1, Math.round(receiptFile.size / 1024))} KB)
                 </span>
               </>
             ) : (
               <>
-                <Upload className="h-4 w-4" />
+                <Upload className="h-4 w-4 shrink-0" />
                 <span>Choose photo or PDF receipt...</span>
               </>
             )}
@@ -404,7 +476,7 @@ export function ReimbursementForm({
           <input
             id="reimbursement-receipt-input"
             type="file"
-            accept="image/jpeg,image/png,image/webp,application/pdf"
+            accept="image/*,application/pdf,.heic,.heif"
             onChange={handleFileChange}
             className="sr-only"
           />
