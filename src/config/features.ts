@@ -10,7 +10,14 @@ export const PHASE_FLAGS = {
   adminPortal: true,
   auditLogs: true,
 
-  // Phase 2+ (Strictly deferred out of Phase 1)
+  // Phase 2 & 3 Modules (Isolated behind Error Boundaries)
+  reimbursements: true,
+  specialAnnouncements: true,
+  reactions: true,
+  ministryUpdates: true,
+  unreadIndicators: true,
+
+  // Deferred Future Modules
   dailyReadingsAndNovenas: false,
   livestreamEmbeds: false,
   inAppRsvps: false,

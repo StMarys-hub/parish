@@ -27,10 +27,13 @@ import {
 } from '../../types/parish';
 import { AdminAuditLogViewer } from './AdminAuditLogViewer';
 import { AdminBulletinComposer } from './AdminBulletinComposer';
+import { AdminMinistryUpdatesManager } from './AdminMinistryUpdatesManager';
 import { AdminParishInfoEditor } from './AdminParishInfoEditor';
 import { AdminSchedulesEditor } from './AdminSchedulesEditor';
 import { AdminThemeControl } from './AdminThemeControl';
 import { AdminUsersManager } from './AdminUsersManager';
+import { SpecialAnnouncementComposer } from './SpecialAnnouncementComposer';
+import { TrusteeReimbursementQueue } from './TrusteeReimbursementQueue';
 
 interface AdminPortalProps {
   fallbackBulletin: WeeklyBulletin;
@@ -79,7 +82,15 @@ export function AdminPortal({
   }, [initialRecoveryMode]);
 
   const [adminTab, setAdminTab] = useState<
-    'composer' | 'schedules' | 'parish' | 'users' | 'theme' | 'audit'
+    | 'composer'
+    | 'special'
+    | 'ministries'
+    | 'reimbursements'
+    | 'schedules'
+    | 'parish'
+    | 'users'
+    | 'theme'
+    | 'audit'
   >('composer');
   const [bulletins, setBulletins] = useState<WeeklyBulletin[]>([fallbackBulletin]);
   const [selectedBulletinIdx, setSelectedBulletinIdx] = useState(0);
@@ -490,6 +501,9 @@ export function AdminPortal({
         {(
           [
             ['composer', 'Bulletin Composer'],
+            ['special', 'Special Notices'],
+            ['ministries', 'Ministry Updates'],
+            ['reimbursements', 'Reimbursements'],
             ['schedules', 'Regular Schedules'],
             ['parish', 'Parish Info'],
             ['users', 'Users & Roles'],
@@ -557,6 +571,42 @@ export function AdminPortal({
             }}
           />
         </div>
+      )}
+
+      {adminTab === 'special' && (
+        <ErrorBoundary
+          fallback={
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-900">
+              Special Announcements composer hit an unexpected error. Try refreshing.
+            </div>
+          }
+        >
+          <SpecialAnnouncementComposer isSandbox={sandboxMode} onChanged={onDataChanged} />
+        </ErrorBoundary>
+      )}
+
+      {adminTab === 'ministries' && (
+        <ErrorBoundary
+          fallback={
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-900">
+              Ministry Updates manager hit an unexpected error. Try refreshing.
+            </div>
+          }
+        >
+          <AdminMinistryUpdatesManager isSandbox={sandboxMode} onChanged={onDataChanged} />
+        </ErrorBoundary>
+      )}
+
+      {adminTab === 'reimbursements' && (
+        <ErrorBoundary
+          fallback={
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-900">
+              Trustee Reimbursement Queue encountered an error. Try refreshing.
+            </div>
+          }
+        >
+          <TrusteeReimbursementQueue currentUser={adminProfile} isSandbox={sandboxMode} />
+        </ErrorBoundary>
       )}
 
       {adminTab === 'schedules' && (

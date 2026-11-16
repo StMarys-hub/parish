@@ -15,6 +15,9 @@ const ACTION_BADGE_COLORS: Record<AuditAction, string> = {
   USER_DELETE: 'bg-rose-50 text-rose-800 border-rose-200',
   PASSWORD_RESET: 'bg-orange-50 text-orange-900 border-orange-200',
   THEME_CHANGE: 'bg-parish-gold-soft text-parish-gold-ink border-parish-gold/30',
+  REIMBURSEMENT_APPROVED: 'bg-blue-50 text-blue-800 border-blue-200',
+  REIMBURSEMENT_PAID: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  REIMBURSEMENT_DECLINED: 'bg-rose-50 text-rose-800 border-rose-200',
 };
 
 const GOVERNANCE_ACTIONS = new Set<AuditAction>([
@@ -24,6 +27,9 @@ const GOVERNANCE_ACTIONS = new Set<AuditAction>([
   'USER_DELETE',
   'PASSWORD_RESET',
   'THEME_CHANGE',
+  'REIMBURSEMENT_APPROVED',
+  'REIMBURSEMENT_PAID',
+  'REIMBURSEMENT_DECLINED',
 ]);
 
 export function AdminAuditLogViewer({ isSandbox }: { isSandbox: boolean }) {

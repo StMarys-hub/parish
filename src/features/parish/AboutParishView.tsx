@@ -1,4 +1,5 @@
-import { Clock, Globe, Mail, MapPin, Navigation, Phone, Shield, Users } from 'lucide-react';
+import { Clock, Globe, Mail, MapPin, Navigation, Phone, Receipt, Shield, Users } from 'lucide-react';
+import { PHASE_FLAGS } from '../../config/features';
 import { sanitizeActionUrl } from '../../lib/sanitize';
 import { ParishInfo } from '../../types/parish';
 import { PushOptInCard } from '../notifications/PushOptInCard';
@@ -7,9 +8,10 @@ import { InstallShareBanner } from '../pwa/InstallShareBanner';
 interface AboutParishViewProps {
   info: ParishInfo;
   onOpenAdmin: () => void;
+  onOpenReimbursements?: () => void;
 }
 
-export function AboutParishView({ info, onOpenAdmin }: AboutParishViewProps) {
+export function AboutParishView({ info, onOpenAdmin, onOpenReimbursements }: AboutParishViewProps) {
   const safeMapsUrl = sanitizeActionUrl(info.maps_url);
   const safeWebsiteUrl = sanitizeActionUrl(info.website_url);
   const safeEmailUrl = sanitizeActionUrl(`mailto:${info.email}`, true);
@@ -65,6 +67,32 @@ export function AboutParishView({ info, onOpenAdmin }: AboutParishViewProps) {
 
       {/* Push Notification Settings */}
       <PushOptInCard />
+
+      {/* Parishioner Expense Reimbursement Portal */}
+      {PHASE_FLAGS.reimbursements && onOpenReimbursements && (
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-parish-border bg-white p-5 shadow-2xs">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-parish-navy/10 p-2.5 text-parish-navy">
+              <Receipt className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-parish-ink">
+                Expense Reimbursement Portal
+              </h3>
+              <p className="mt-0.5 text-xs text-parish-muted">
+                Submit ministry bills &amp; receipts to Parish Trustees or track reimbursement status.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenReimbursements}
+            className="rounded-xl bg-parish-navy px-4 py-2 text-xs font-semibold text-white hover:bg-parish-navy-dark"
+          >
+            Submit / Track Receipt
+          </button>
+        </section>
+      )}
 
       {/* Parish Clergy & Trustees */}
       <section className="rounded-2xl border border-parish-border bg-white p-5 shadow-2xs">

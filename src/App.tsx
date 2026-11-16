@@ -12,6 +12,7 @@ import { AdminPortal } from './features/admin/AdminPortal';
 import { BulletinView } from './features/bulletin/BulletinView';
 import { AboutParishView } from './features/parish/AboutParishView';
 import { InstallShareBanner } from './features/pwa/InstallShareBanner';
+import { ReimbursementPortal } from './features/reimbursements/ReimbursementPortal';
 import { SchedulesView } from './features/schedules/SchedulesView';
 import { applyThemeToDocument, resolveActiveTheme } from './lib/themeEngine';
 import { initialAuthCallbackState, supabase } from './lib/supabase';
@@ -21,14 +22,29 @@ import {
   fetchPublishedBulletins,
   fetchRegularSchedules,
 } from './services/parishRepository';
-import { ParishInfo, RegularScheduleItem, ThemeMode, WeeklyBulletin } from './types/parish';
+import {
+  fetchPublishedMinistryUpdates,
+  fetchPublishedSpecialAnnouncements,
+} from './services/phase3Repository';
+import {
+  MinistryUpdate,
+  ParishInfo,
+  RegularScheduleItem,
+  SpecialAnnouncement,
+  ThemeMode,
+  WeeklyBulletin,
+} from './types/parish';
 
-type AppTab = 'bulletin' | 'schedules' | 'about' | 'admin';
+type AppTab = 'bulletin' | 'schedules' | 'about' | 'reimbursements' | 'admin';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<AppTab>(() =>
-    initialAuthCallbackState.openAdmin ? 'admin' : 'bulletin'
-  );
+  const [activeTab, setActiveTab] = useState<AppTab>(() => {
+    if (initialAuthCallbackState.openAdmin) return 'admin';
+    if (typeof window !== 'undefined' && window.location.hash.startsWith('#/reimbursements')) {
+      return 'reimbursements';
+    }
+    return 'bulletin';
+  });
   const [passwordRecoveryPending, setPasswordRecoveryPending] = useState<boolean>(
     () => initialAuthCallbackState.isRecovery
   );
@@ -40,6 +56,8 @@ export function App() {
   );
   const [parishInfo, setParishInfo] = useState<ParishInfo>(SAMPLE_PARISH_INFO);
   const [themeMode, setThemeMode] = useState<ThemeMode>('auto');
+  const [specialAnnouncements, setSpecialAnnouncements] = useState<SpecialAnnouncement[]>([]);
+  const [ministryUpdates, setMinistryUpdates] = useState<MinistryUpdate[]>([]);
 
   const resolvedTheme = useMemo(() => resolveActiveTheme(themeMode), [themeMode]);
 
@@ -54,17 +72,21 @@ export function App() {
   const loadAll = useCallback(async () => {
     setLoadingBulletins(true);
     try {
-      const [bulRes, schedRes, infoRes, settingsRes] = await Promise.all([
+      const [bulRes, schedRes, infoRes, settingsRes, specialRes, ministryRes] = await Promise.all([
         fetchPublishedBulletins(4),
         fetchRegularSchedules(),
         fetchParishInfo(),
         fetchAppSettings(),
+        fetchPublishedSpecialAnnouncements().catch(() => [] as SpecialAnnouncement[]),
+        fetchPublishedMinistryUpdates().catch(() => [] as MinistryUpdate[]),
       ]);
       setBulletins(bulRes.bulletins);
       setBulletinSource(bulRes.source);
       setRegularSchedules(schedRes);
       setParishInfo(infoRes);
       setThemeMode(settingsRes.theme_mode);
+      setSpecialAnnouncements(specialRes);
+      setMinistryUpdates(ministryRes);
     } finally {
       setLoadingBulletins(false);
     }
@@ -93,6 +115,10 @@ export function App() {
         setActiveTab('admin');
         return;
       }
+      if (window.location.hash.startsWith('#/reimbursements')) {
+        setActiveTab('reimbursements');
+        return;
+      }
       // Prevent Supabase clearing #access_token=... or #error=... from bouncing out of Admin recovery
       if (
         passwordRecoveryPending ||
@@ -104,7 +130,7 @@ export function App() {
       ) {
         return;
       }
-      if (activeTab === 'admin') {
+      if (activeTab === 'admin' || activeTab === 'reimbursements') {
         setActiveTab('bulletin');
       }
     };
@@ -127,7 +153,8 @@ export function App() {
       );
     }
     setActiveTab(tab);
-    window.location.hash = tab === 'admin' ? '#/admin' : '';
+    window.location.hash =
+      tab === 'admin' ? '#/admin' : tab === 'reimbursements' ? '#/reimbursements' : '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -211,6 +238,8 @@ export function App() {
             isLoading={loadingBulletins}
             source={bulletinSource}
             seasonLabel={resolvedTheme.displayLabel}
+            specialAnnouncements={specialAnnouncements}
+            ministryUpdates={ministryUpdates}
           />
         )}
 
@@ -225,7 +254,21 @@ export function App() {
           <AboutParishView
             info={parishInfo}
             onOpenAdmin={() => navigate('admin')}
+            onOpenReimbursements={() => navigate('reimbursements')}
           />
+        )}
+
+        {activeTab === 'reimbursements' && PHASE_FLAGS.reimbursements && (
+          <ErrorBoundary
+            fallback={
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center text-sm text-rose-900">
+                Reimbursement Portal encountered an error. Existing parish bulletins &amp; schedules
+                remain unaffected.
+              </div>
+            }
+          >
+            <ReimbursementPortal onBackToParish={() => navigate('about')} />
+          </ErrorBoundary>
         )}
 
         {activeTab === 'admin' && PHASE_FLAGS.adminPortal && (

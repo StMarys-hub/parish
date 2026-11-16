@@ -144,7 +144,10 @@ export type AuditAction =
   | 'USER_DEACTIVATE'
   | 'USER_DELETE'
   | 'PASSWORD_RESET'
-  | 'THEME_CHANGE';
+  | 'THEME_CHANGE'
+  | 'REIMBURSEMENT_APPROVED'
+  | 'REIMBURSEMENT_PAID'
+  | 'REIMBURSEMENT_DECLINED';
 
 export interface AuditLogEntry {
   id: number;
@@ -187,4 +190,87 @@ export function formatRoleLabel(role?: string | null): string {
   if (role === 'trustee') return 'Trustee';
   if (role === 'secretary') return 'Secretary';
   return role ?? 'Admin';
+}
+
+// ============================================================================
+// PHASE 3: REIMBURSEMENTS, SPECIAL ANNOUNCEMENTS, REACTIONS & MINISTRIES
+// ============================================================================
+export const PARISH_MINISTRIES = [
+  'CML',
+  'Sunday School / CCD',
+  "Marian Women's Forum",
+  'Men of St. Joseph',
+  'St. Vincent de Paul',
+  'Jesus Youth',
+  'Choir',
+  'Altar Servers',
+  'Kitchen / Hospitality',
+  'Maintenance',
+  'Other',
+] as const;
+
+export type PayoutMethod = 'Check' | 'Zelle' | 'Direct Reimbursement';
+export type ReimbursementStatus = 'pending_review' | 'approved' | 'paid' | 'declined';
+
+export interface ReimbursementClaim {
+  id: string;
+  reference_code: string;
+  full_name: string;
+  contact_info?: string;
+  ministry: string;
+  expense_date: string;
+  amount_cents: number;
+  description: string;
+  payout_method: PayoutMethod;
+  receipt_mime_type?: string | null;
+  receipt_file_name?: string | null;
+  receipt_signed_url?: string | null;
+  status: ReimbursementStatus;
+  trustee_notes?: string | null;
+  reviewed_by_name?: string | null;
+  reviewed_at?: string | null;
+  paid_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SpecialAnnouncement {
+  id: string;
+  title: string;
+  description: string;
+  event_date_label?: string | null;
+  location_label?: string | null;
+  maps_url?: string | null;
+  web_url?: string | null;
+  web_link_label?: string | null;
+  flyer_url?: string | null;
+  flyer_storage_path?: string | null;
+  flyer_mime_type?: string | null;
+  is_pinned: boolean;
+  status: 'published' | 'archived';
+  published_at: string;
+  updated_at: string;
+}
+
+export interface MinistryUpdate {
+  id: string;
+  ministry_name: string;
+  title: string;
+  body: string;
+  week_label?: string | null;
+  event_date_label?: string | null;
+  location_label?: string | null;
+  action_url?: string | null;
+  action_label?: string | null;
+  status: 'published' | 'archived';
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ReactionTargetType = 'bulletin' | 'special' | 'ministry';
+
+export interface ReactionSummary {
+  count: number;
+  reactedByMe: boolean;
 }
