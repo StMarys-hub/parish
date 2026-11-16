@@ -3,6 +3,7 @@ import {
   Calendar,
   CheckCheck,
   ChevronDown,
+  ChevronsUpDown,
   ChevronUp,
   Clock,
   ExternalLink,
@@ -12,12 +13,11 @@ import {
   MapPin,
   Sparkles,
 } from 'lucide-react';
-import { CategoryBadge } from '../../components/CategoryBadge';
+import { CollapsibleAnnouncementCard } from '../../components/CollapsibleAnnouncementCard';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { FlyerLightbox } from '../../components/FlyerLightbox';
-import { ReactionButton } from '../../components/ReactionButton';
-import { UnreadDotBadge } from '../../components/UnreadDotBadge';
 import { PHASE_FLAGS } from '../../config/features';
+import { computeAttentionBadges } from '../../lib/announcementSignals';
 import { useReadAnnouncements } from '../../lib/readReceipts';
 import { sanitizeActionUrl } from '../../lib/sanitize';
 import {
@@ -82,6 +82,7 @@ export function BulletinView({
   const [selectedCategory, setSelectedCategory] = useState<
     'All' | 'Ministry' | AnnouncementCategory
   >('All');
+  const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(() => new Set());
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [lightboxFlyer, setLightboxFlyer] = useState<{
     title: string;
@@ -161,6 +162,34 @@ export function BulletinView({
         .filter((k) => isUnread(k)),
     [visibleAnnouncements, isUnread]
   );
+
+  const allVisibleExpanded =
+    visibleAnnouncements.length > 0 &&
+    visibleAnnouncements.every((c) => expandedCardIds.has(c.id));
+
+  const toggleCardExpand = (cardId: string, readKey: string) => {
+    setExpandedCardIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(cardId)) {
+        next.delete(cardId);
+      } else {
+        next.add(cardId);
+        markRead(readKey);
+      }
+      return next;
+    });
+  };
+
+  const toggleExpandAllVisible = () => {
+    if (allVisibleExpanded) {
+      setExpandedCardIds(new Set());
+    } else {
+      setExpandedCardIds(new Set(visibleAnnouncements.map((c) => c.id)));
+      if (unreadVisibleKeys.length > 0) {
+        markManyRead(unreadVisibleKeys);
+      }
+    }
+  };
 
   if (isLoading && bulletins.length === 0) {
     return (
@@ -243,6 +272,7 @@ export function BulletinView({
                 onClick={() => {
                   setSelectedWeekIndex(idx);
                   setSelectedCategory('All');
+                  setExpandedCardIds(new Set());
                 }}
                 className={`rounded-lg px-2 py-2 text-center text-xs font-semibold transition-colors ${
                   active
@@ -413,18 +443,30 @@ export function BulletinView({
           ))}
         </div>
 
-        {PHASE_FLAGS.unreadIndicators &&
-          selectedCategory !== 'Ministry' &&
-          unreadVisibleKeys.length > 0 && (
+        <div className="flex shrink-0 items-center gap-1.5">
+          {selectedCategory !== 'Ministry' && visibleAnnouncements.length > 0 && (
             <button
               type="button"
-              onClick={() => markManyRead(unreadVisibleKeys)}
+              onClick={toggleExpandAllVisible}
               className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-white px-3 py-1 text-[11px] font-semibold text-parish-navy hover:bg-parish-canvas"
             >
-              <CheckCheck className="h-3.5 w-3.5" />
-              Mark {unreadVisibleKeys.length} Read
+              <ChevronsUpDown className="h-3.5 w-3.5" />
+              {allVisibleExpanded ? 'Collapse All' : 'Expand All'}
             </button>
           )}
+          {PHASE_FLAGS.unreadIndicators &&
+            selectedCategory !== 'Ministry' &&
+            unreadVisibleKeys.length > 0 && (
+              <button
+                type="button"
+                onClick={() => markManyRead(unreadVisibleKeys)}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-white px-3 py-1 text-[11px] font-semibold text-parish-navy hover:bg-parish-canvas"
+              >
+                <CheckCheck className="h-3.5 w-3.5" />
+                Mark {unreadVisibleKeys.length} Read
+              </button>
+            )}
+        </div>
       </div>
 
       {/* Categorized Announcement Cards or Grouped Ministry Updates */}
@@ -446,31 +488,41 @@ export function BulletinView({
           />
         </ErrorBoundary>
       ) : (
-        <div className="space-y-3.5">
+        <div className="space-y-2.5">
           {visibleAnnouncements.map((card) => {
             const readKey = `bulletin:${card.id}`;
             const unread = PHASE_FLAGS.unreadIndicators && isUnread(readKey);
+            const isExpanded = expandedCardIds.has(card.id);
+            const badges = computeAttentionBadges({
+              postedAtIso: activeBulletin.published_at || activeBulletin.updated_at,
+              dateTimeLabel: card.dateTimeLabel,
+              title: card.title,
+              body: card.body,
+              actions: card.actions,
+            });
 
             return (
-              <article
+              <CollapsibleAnnouncementCard
                 key={card.id}
-                onClick={() => markRead(readKey)}
-                className={`cursor-pointer rounded-2xl border bg-white p-4 shadow-2xs transition-all hover:shadow-sm sm:p-5 ${
-                  unread ? 'border-rose-200 ring-1 ring-rose-100' : 'border-parish-border'
-                }`}
+                id={card.id}
+                title={card.title}
+                previewText={card.body}
+                categoryLabel={card.category}
+                dateTimeLabel={card.dateTimeLabel}
+                locationLabel={card.locationLabel}
+                isExpanded={isExpanded}
+                onToggle={() => toggleCardExpand(card.id, readKey)}
+                unread={unread}
+                badges={badges}
+                reactionTargetType={PHASE_FLAGS.reactions ? 'bulletin' : undefined}
+                reactionSummary={reactions[reactionKey('bulletin', card.id)]}
+                onToggleReaction={(t, id) => {
+                  markRead(readKey);
+                  handleToggleReaction(t, id);
+                }}
               >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <UnreadDotBadge unread={unread} />
-                    <h3 className="text-base font-bold leading-snug text-parish-ink sm:text-lg">
-                      {card.title}
-                    </h3>
-                  </div>
-                  <CategoryBadge category={card.category} />
-                </div>
-
                 {(card.dateTimeLabel || card.locationLabel) && (
-                  <div className="mt-2.5 flex flex-wrap gap-2">
+                  <div className="mb-3 flex flex-wrap gap-2">
                     {card.dateTimeLabel && (
                       <span className="inline-flex items-center gap-1 rounded-lg bg-parish-canvas px-2.5 py-1 text-xs font-medium text-parish-navy">
                         <Calendar className="h-3.5 w-3.5 text-parish-gold" />
@@ -486,12 +538,12 @@ export function BulletinView({
                   </div>
                 )}
 
-                <p className="mt-3 whitespace-pre-line text-base leading-[1.6] text-parish-ink">
+                <p className="whitespace-pre-line text-base leading-[1.6] text-parish-ink">
                   {card.body}
                 </p>
 
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap gap-2">
+                {card.actions.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
                     {card.actions.map((action, idx) => {
                       const safeUrl = sanitizeActionUrl(action.url);
                       if (!safeUrl) return null;
@@ -501,8 +553,7 @@ export function BulletinView({
                           <button
                             key={idx}
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
+                            onClick={() => {
                               markRead(readKey);
                               setLightboxFlyer({
                                 title: action.label || card.title,
@@ -524,10 +575,7 @@ export function BulletinView({
                           href={safeUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            markRead(readKey);
-                          }}
+                          onClick={() => markRead(readKey)}
                           className="inline-flex items-center gap-2 rounded-xl bg-parish-navy px-3.5 py-2 text-sm font-semibold text-white shadow-2xs hover:bg-parish-navy-dark"
                         >
                           {getActionIcon(action.kind)}
@@ -536,22 +584,8 @@ export function BulletinView({
                       );
                     })}
                   </div>
-
-                  {PHASE_FLAGS.reactions && (
-                    <ErrorBoundary>
-                      <ReactionButton
-                        targetType="bulletin"
-                        targetId={card.id}
-                        summary={reactions[reactionKey('bulletin', card.id)]}
-                        onToggle={(t, id) => {
-                          markRead(readKey);
-                          handleToggleReaction(t, id);
-                        }}
-                      />
-                    </ErrorBoundary>
-                  )}
-                </div>
-              </article>
+                )}
+              </CollapsibleAnnouncementCard>
             );
           })}
         </div>

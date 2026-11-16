@@ -178,3 +178,30 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+
+/* GPU-accelerated CSS grid accordion transitions (zero JS height thrashing or layout jumps) */
+.parish-accordion-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+}
+
+.parish-accordion-panel[data-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.parish-accordion-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .parish-accordion-panel {
+    transition: none;
+  }
+}

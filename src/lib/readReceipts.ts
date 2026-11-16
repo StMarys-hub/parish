@@ -1,15 +1,29 @@
 import { useCallback, useEffect, useState } from 'react';
 
-const READ_STORAGE_KEY = 'parish_read_announcements_v1';
+const VIEWED_STORAGE_KEY = 'viewed_cards';
+const LEGACY_STORAGE_KEY = 'parish_read_announcements_v1';
 const MAX_STORED_IDS = 400;
 
 function loadReadSet(): Set<string> {
   try {
-    const raw = localStorage.getItem(READ_STORAGE_KEY);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((v): v is string => typeof v === 'string'));
+    const rawPrimary = localStorage.getItem(VIEWED_STORAGE_KEY);
+    const rawLegacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+    const merged = new Set<string>();
+
+    for (const raw of [rawLegacy, rawPrimary]) {
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (typeof item === 'string') merged.add(item);
+        }
+      }
+    }
+
+    if (rawLegacy && !rawPrimary && merged.size > 0) {
+      persistReadSet(merged);
+    }
+    return merged;
   } catch {
     return new Set();
   }
@@ -18,7 +32,7 @@ function loadReadSet(): Set<string> {
 function persistReadSet(set: Set<string>): void {
   try {
     const arr = Array.from(set).slice(-MAX_STORED_IDS);
-    localStorage.setItem(READ_STORAGE_KEY, JSON.stringify(arr));
+    localStorage.setItem(VIEWED_STORAGE_KEY, JSON.stringify(arr));
   } catch {
     // Ignore storage quota / private mode failures
   }
@@ -44,15 +58,15 @@ export function markAnnouncementKeysRead(keys: string[]): Set<string> {
 }
 
 /**
- * Local-storage backed read tracker with zero network calls.
- * Supports tap-to-mark-read and batch "Mark all read" actions across announcement feeds.
+ * Local-storage (`viewed_cards`) backed read tracker with zero network calls.
+ * Cards stay unread until expanded or explicitly marked read.
  */
 export function useReadAnnouncements() {
   const [readIds, setReadIds] = useState<Set<string>>(() => loadReadSet());
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === READ_STORAGE_KEY) {
+      if (e.key === VIEWED_STORAGE_KEY || e.key === LEGACY_STORAGE_KEY) {
         setReadIds(loadReadSet());
       }
     };
