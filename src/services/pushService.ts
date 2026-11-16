@@ -11,13 +11,19 @@ const SUBSCRIBED_FLAG_KEY = 'parish_push_subscribed_v1';
 export function isIosDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent;
-  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  return (
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
 }
 
 export function isRunningStandalone(): boolean {
   if (typeof window === 'undefined') return false;
   const nav = window.navigator as Navigator & { standalone?: boolean };
-  return nav.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+  return (
+    nav.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches
+  );
 }
 
 export function getPushSupportState(): PushSupportState {
@@ -49,6 +55,15 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   return outputArray;
 }
 
+function keysMatch(a: ArrayBuffer | null | undefined, b: Uint8Array): boolean {
+  if (!a || a.byteLength !== b.byteLength) return false;
+  const viewA = new Uint8Array(a);
+  for (let i = 0; i < viewA.length; i++) {
+    if (viewA[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 function detectPlatform(): 'ios_pwa' | 'android' | 'desktop' | 'other' {
   if (isIosDevice() && isRunningStandalone()) return 'ios_pwa';
   if (/Android/i.test(navigator.userAgent)) return 'android';
@@ -76,17 +91,41 @@ export async function subscribeToParishPush(): Promise<void> {
   const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY?.trim();
   if (!vapidPublicKey) throw new Error('Missing VITE_VAPID_PUBLIC_KEY');
 
+  if (Notification.permission === 'denied') {
+    throw new Error(
+      isIosDevice()
+        ? 'Notifications are blocked. On iPhone/iPad, open Settings → Notifications → St. Mary’s and turn on Allow Notifications.'
+        : 'Notifications are blocked in your browser settings. Please allow notifications for this site and try again.'
+    );
+  }
+
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') {
-    throw new Error('Notification permission was not granted.');
+    throw new Error(
+      isIosDevice()
+        ? 'Notification permission was not granted. Open iPhone/iPad Settings → Notifications → St. Mary’s to allow alerts.'
+        : 'Notification permission was not granted.'
+    );
   }
 
   const reg = await navigator.serviceWorker.ready;
+  const expectedKey = urlBase64ToUint8Array(vapidPublicKey);
+
   let subscription = await reg.pushManager.getSubscription();
+  // Re-subscribe cleanly if an older subscription used a stale VAPID key or lacked keys
+  if (subscription) {
+    const existingJson = subscription.toJSON();
+    const keyMatches = keysMatch(subscription.options?.applicationServerKey, expectedKey);
+    if (!keyMatches || !existingJson.keys?.p256dh || !existingJson.keys?.auth) {
+      await subscription.unsubscribe().catch(() => {});
+      subscription = null;
+    }
+  }
+
   if (!subscription) {
     subscription = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      applicationServerKey: expectedKey,
     });
   }
 
@@ -94,22 +133,32 @@ export async function subscribeToParishPush(): Promise<void> {
   const endpoint = subscription.endpoint;
   const p256dh = json.keys?.p256dh;
   const auth = json.keys?.auth;
+  const platform = detectPlatform();
 
   if (!endpoint || !p256dh || !auth) {
     throw new Error('Browser returned an incomplete push subscription.');
   }
 
-  const { error } = await supabase.from('push_subscriptions').insert({
-    endpoint,
-    p256dh,
-    auth,
-    platform: detectPlatform(),
-    is_active: true,
+  // Upsert via SECURITY DEFINER RPC so re-enabling on the same iOS/iPad endpoint reactivates is_active=true
+  const { error: rpcErr } = await supabase.rpc('upsert_push_subscription', {
+    p_endpoint: endpoint,
+    p_p256dh: p256dh,
+    p_auth: auth,
+    p_platform: platform,
   });
 
-  // Ignore duplicate unique constraint error if device was already registered
-  if (error && !error.message.toLowerCase().includes('duplicate')) {
-    throw error;
+  if (rpcErr) {
+    // Fallback if RPC isn't present on an un-migrated environment
+    const { error } = await supabase.from('push_subscriptions').insert({
+      endpoint,
+      p256dh,
+      auth,
+      platform,
+      is_active: true,
+    });
+    if (error && !error.message.toLowerCase().includes('duplicate')) {
+      throw error;
+    }
   }
 
   try {

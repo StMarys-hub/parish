@@ -19,6 +19,30 @@ interface NotifyRequest {
   pushUrl?: string;
 }
 
+function normalizeVapidSubject(rawInput?: string): string {
+  const fallback = "mailto:vicar@stmarysyroclt.org";
+  if (!rawInput) return fallback;
+
+  let cleaned = rawInput.trim().replace(/^['"]+|['"]+$/g, "").trim();
+  if (!cleaned) return fallback;
+
+  // Recover accidental double prefix such as mailto:"mailto:..."
+  if (/^mailto:['"]?mailto:/i.test(cleaned)) {
+    cleaned = cleaned.replace(/^mailto:['"]?/i, "").replace(/['"]+$/g, "").trim();
+  }
+
+  if (cleaned.startsWith("mailto:") && cleaned.includes("@")) {
+    return cleaned;
+  }
+  if (cleaned.startsWith("https://") && cleaned.includes(".")) {
+    return cleaned;
+  }
+  if (cleaned.includes("@") && !cleaned.includes(":")) {
+    return `mailto:${cleaned}`;
+  }
+  return fallback;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -89,10 +113,7 @@ Deno.serve(async (req: Request) => {
 
     // 4. Configure VAPID Application Server Keys from Supabase Secrets
     const rawVapidKeysJson = Deno.env.get("VAPID_KEYS_JSON")?.trim();
-    const rawSubject = (Deno.env.get("VAPID_SUBJECT") ?? "mailto:vicar@stmarysyroclt.org").trim();
-    const vapidSubject = rawSubject.startsWith("mailto:") || rawSubject.startsWith("https://")
-      ? rawSubject
-      : `mailto:${rawSubject}`;
+    const vapidSubject = normalizeVapidSubject(Deno.env.get("VAPID_SUBJECT"));
 
     if (!rawVapidKeysJson) {
       return jsonError("VAPID_KEYS_JSON secret is not configured on Supabase", 500);
@@ -121,7 +142,7 @@ Deno.serve(async (req: Request) => {
     // 5. Fetch active push subscriptions (service_role bypasses private RLS)
     const { data: subs, error: subsErr } = await adminClient
       .from("push_subscriptions")
-      .select("id, endpoint, p256dh, auth")
+      .select("id, endpoint, p256dh, auth, platform")
       .eq("is_active", true);
 
     if (subsErr) {
@@ -136,7 +157,10 @@ Deno.serve(async (req: Request) => {
     });
 
     let sentCount = 0;
+    const sentIds: string[] = [];
     const expiredIds: string[] = [];
+    const sentByPlatform: Record<string, number> = {};
+    const deliveryErrors: Array<{ platform: string; status: number | null; detail: string }> = [];
     const batchSize = 25;
 
     for (let i = 0; i < (subs?.length ?? 0); i += batchSize) {
@@ -147,23 +171,52 @@ Deno.serve(async (req: Request) => {
             endpoint: sub.endpoint,
             keys: { p256dh: sub.p256dh, auth: sub.auth },
           });
-          await subscriber.pushTextMessage(payload, { urgency: "normal", ttl: 86400 });
-          return sub.id;
+          // Urgency "high" ensures sleeping iOS / iPadOS devices receive APNs Web Push promptly
+          await subscriber.pushTextMessage(payload, {
+            urgency: webpush.Urgency.High,
+            ttl: 86400,
+          });
+          return sub;
         })
       );
 
       for (let j = 0; j < results.length; j++) {
         const res = results[j];
+        const sub = batch[j];
+        const platform = sub.platform ?? "other";
+
         if (res.status === "fulfilled") {
           sentCount++;
+          sentIds.push(sub.id);
+          sentByPlatform[platform] = (sentByPlatform[platform] ?? 0) + 1;
         } else {
-          const reason = res.reason as { response?: Response } | undefined;
-          const status = reason?.response?.status;
+          const reason = res.reason as { response?: Response; message?: string } | undefined;
+          const status = reason?.response?.status ?? null;
+          let detail = reason?.message ?? String(res.reason ?? "Push failed");
+          if (reason?.response) {
+            try {
+              const errBody = (await reason.response.text()).trim();
+              if (errBody) detail = errBody.slice(0, 200);
+            } catch {
+              // Keep status-based message
+            }
+          }
+
+          console.error(`Push failed [${platform}] status=${status}: ${detail}`);
           if (status === 404 || status === 410) {
-            expiredIds.push(batch[j].id);
+            expiredIds.push(sub.id);
+          } else if (deliveryErrors.length < 10) {
+            deliveryErrors.push({ platform, status, detail });
           }
         }
       }
+    }
+
+    if (sentIds.length > 0) {
+      await adminClient
+        .from("push_subscriptions")
+        .update({ last_notified_at: new Date().toISOString() })
+        .in("id", sentIds);
     }
 
     if (expiredIds.length > 0) {
@@ -180,7 +233,7 @@ Deno.serve(async (req: Request) => {
         .eq("id", body.bulletinId);
     }
 
-    // 6. Record immutable PUSH_DISPATCH audit entry
+    // 6. Record immutable PUSH_DISPATCH audit entry with platform breakdown & any errors
     await adminClient.from("audit_logs").insert({
       actor_user_id: user.id,
       actor_email: adminRecord.email,
@@ -188,11 +241,27 @@ Deno.serve(async (req: Request) => {
       action: "PUSH_DISPATCH",
       table_name: "push_subscriptions",
       record_id: body.bulletinId ?? "urgent-alert",
-      change_summary: `Sent push notification to ${sentCount} active devices (${expiredIds.length} expired deactivated)`,
-      new_data: { title: body.pushTitle, sentCount, deactivatedCount: expiredIds.length },
+      change_summary: `Sent push notification to ${sentCount} active devices (${expiredIds.length} expired deactivated${
+        deliveryErrors.length > 0 ? `, ${deliveryErrors.length} failed` : ""
+      })`,
+      new_data: {
+        title: body.pushTitle,
+        sentCount,
+        deactivatedCount: expiredIds.length,
+        sentByPlatform,
+        failedCount: deliveryErrors.length,
+        deliveryErrors,
+      },
     });
 
-    return jsonOk({ published: true, sent: sentCount, deactivated: expiredIds.length });
+    return jsonOk({
+      published: true,
+      sent: sentCount,
+      deactivated: expiredIds.length,
+      sentByPlatform,
+      failedCount: deliveryErrors.length,
+      deliveryErrors,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected server error";
     console.error("publish-and-notify error:", err);

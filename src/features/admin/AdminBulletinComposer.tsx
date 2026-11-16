@@ -327,12 +327,26 @@ export function AdminBulletinComposer({
         pushBody: sanitizePlainText(pushBody),
       });
       setPublishModalOpen(false);
-      setStatusBanner({
-        type: 'ok',
-        text: sendPush
-          ? `Bulletin published! Push sent to ${res.sent} devices (${res.deactivated} expired removed).`
-          : 'Bulletin published silently (without push notification).',
-      });
+      if (sendPush) {
+        const platformParts = Object.entries(res.sentByPlatform ?? {})
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(', ');
+        const errNote =
+          res.failedCount && res.failedCount > 0 && res.deliveryErrors?.length
+            ? ` ⚠️ ${res.failedCount} failed (${res.deliveryErrors.map((e) => `${e.platform}: HTTP ${e.status ?? '?'} ${e.detail}`).join('; ')})`
+            : '';
+        setStatusBanner({
+          type: res.failedCount ? 'err' : 'ok',
+          text: `Bulletin published! Push sent to ${res.sent} devices${
+            platformParts ? ` (${platformParts})` : ''
+          } • ${res.deactivated} expired removed.${errNote}`,
+        });
+      } else {
+        setStatusBanner({
+          type: 'ok',
+          text: 'Bulletin published silently (without push notification).',
+        });
+      }
       onSaved();
     } catch (err) {
       setStatusBanner({

@@ -266,7 +266,14 @@ export async function publishBulletinAndNotify(params: {
   sendPush: boolean;
   pushTitle?: string;
   pushBody?: string;
-}): Promise<{ published: boolean; sent: number; deactivated: number }> {
+}): Promise<{
+  published: boolean;
+  sent: number;
+  deactivated: number;
+  sentByPlatform?: Record<string, number>;
+  failedCount?: number;
+  deliveryErrors?: Array<{ platform: string; status: number | null; detail: string }>;
+}> {
   if (!supabase) throw new Error('Supabase is not configured');
 
   const { data, error } = await supabase.functions.invoke('publish-and-notify', {
@@ -274,7 +281,14 @@ export async function publishBulletinAndNotify(params: {
   });
 
   if (error) throw await extractFunctionError(error, 'Failed to publish bulletin.');
-  return data as { published: boolean; sent: number; deactivated: number };
+  return data as {
+    published: boolean;
+    sent: number;
+    deactivated: number;
+    sentByPlatform?: Record<string, number>;
+    failedCount?: number;
+    deliveryErrors?: Array<{ platform: string; status: number | null; detail: string }>;
+  };
 }
 
 export async function saveRegularScheduleItem(
