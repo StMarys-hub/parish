@@ -42,6 +42,21 @@ function getEdgeFunctionEndpoint(name: string): { url: string; anonKey: string }
   return { url: `${baseUrl.replace(/\/+$/, '')}/functions/v1/${name}`, anonKey };
 }
 
+async function requireFreshUserId(): Promise<string> {
+  if (!supabase) throw new Error('Supabase is not configured');
+  const { data: sessionRes } = await supabase.auth.getSession();
+  const session = sessionRes.session;
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (!session || (session.expires_at && session.expires_at - nowSec < 60)) {
+    const { data: refreshed, error: refErr } = await supabase.auth.refreshSession();
+    if (refErr || !refreshed.session?.user) {
+      throw new Error('Your admin session expired. Please sign out and sign in again.');
+    }
+    return refreshed.session.user.id;
+  }
+  return session.user.id;
+}
+
 async function readAuthHeader(): Promise<string | null> {
   if (!supabase) return null;
   const { data } = await supabase.auth.getSession();
@@ -97,9 +112,8 @@ export async function upsertSpecialAnnouncement(
 ): Promise<SpecialAnnouncement> {
   if (!supabase) throw new Error('Supabase is not configured');
 
-  const { data: authData } = await supabase.auth.getUser();
+  const userId = await requireFreshUserId();
   const row = {
-    ...(payload.id ? { id: payload.id } : {}),
     title: sanitizePlainText(payload.title),
     description: sanitizePlainText(payload.description),
     event_date_label: payload.event_date_label ? sanitizePlainText(payload.event_date_label) : null,
@@ -113,15 +127,15 @@ export async function upsertSpecialAnnouncement(
     is_pinned: payload.is_pinned ?? true,
     status: payload.status ?? 'published',
     published_at: payload.published_at ?? new Date().toISOString(),
-    updated_by: authData.user?.id ?? null,
+    updated_by: userId,
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase
-    .from('special_announcements')
-    .upsert(row)
-    .select()
-    .single();
+  const query = payload.id
+    ? supabase.from('special_announcements').update(row).eq('id', payload.id)
+    : supabase.from('special_announcements').insert(row);
+
+  const { data, error } = await query.select().single();
   if (error || !data) {
     throw new Error(error?.message ?? 'Failed to save Special Announcement');
   }
@@ -133,6 +147,7 @@ export async function setSpecialAnnouncementStatus(
   status: 'published' | 'archived'
 ): Promise<void> {
   if (!supabase) throw new Error('Supabase is not configured');
+  await requireFreshUserId();
   const { error } = await supabase
     .from('special_announcements')
     .update({ status, updated_at: new Date().toISOString() })
@@ -142,6 +157,7 @@ export async function setSpecialAnnouncementStatus(
 
 export async function deleteSpecialAnnouncement(id: string): Promise<void> {
   if (!supabase) throw new Error('Supabase is not configured');
+  await requireFreshUserId();
   const { error } = await supabase.from('special_announcements').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
@@ -150,6 +166,7 @@ export async function uploadSpecialFlyer(
   file: File
 ): Promise<{ publicUrl: string; storagePath: string; mimeType: string }> {
   if (!supabase) throw new Error('Supabase is not configured');
+  await requireFreshUserId();
   const safeName = sanitizeStorageFileName(file.name);
   const path = `special/${Date.now()}-${safeName}`;
   const { error } = await supabase.storage.from('flyers').upload(path, file, {
@@ -209,10 +226,9 @@ export async function upsertMinistryUpdate(
   }
 ): Promise<MinistryUpdate> {
   if (!supabase) throw new Error('Supabase is not configured');
-  const { data: authData } = await supabase.auth.getUser();
+  const userId = await requireFreshUserId();
 
   const row = {
-    ...(payload.id ? { id: payload.id } : {}),
     ministry_name: sanitizePlainText(payload.ministry_name),
     title: sanitizePlainText(payload.title),
     body: sanitizePlainText(payload.body),
@@ -223,15 +239,15 @@ export async function upsertMinistryUpdate(
     action_label: payload.action_label ? sanitizePlainText(payload.action_label) : null,
     status: payload.status ?? 'published',
     sort_order: payload.sort_order ?? 0,
-    updated_by: authData.user?.id ?? null,
+    updated_by: userId,
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase
-    .from('ministry_updates')
-    .upsert(row)
-    .select()
-    .single();
+  const query = payload.id
+    ? supabase.from('ministry_updates').update(row).eq('id', payload.id)
+    : supabase.from('ministry_updates').insert(row);
+
+  const { data, error } = await query.select().single();
   if (error || !data) {
     throw new Error(error?.message ?? 'Failed to save Ministry Update');
   }
@@ -243,6 +259,7 @@ export async function setMinistryUpdateStatus(
   status: 'published' | 'archived'
 ): Promise<void> {
   if (!supabase) throw new Error('Supabase is not configured');
+  await requireFreshUserId();
   const { error } = await supabase
     .from('ministry_updates')
     .update({ status, updated_at: new Date().toISOString() })
@@ -252,6 +269,7 @@ export async function setMinistryUpdateStatus(
 
 export async function deleteMinistryUpdate(id: string): Promise<void> {
   if (!supabase) throw new Error('Supabase is not configured');
+  await requireFreshUserId();
   const { error } = await supabase.from('ministry_updates').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }

@@ -125,6 +125,8 @@ export function AdminPortal({
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setRecoveryMode(true);
+      } else if (event === 'SIGNED_OUT') {
+        setAdminProfile(null);
       }
     });
 
