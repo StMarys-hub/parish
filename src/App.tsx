@@ -313,6 +313,9 @@ export function App() {
               regularSchedules={regularSchedules}
               parishInfo={parishInfo}
               themeMode={themeMode}
+              seasonLabel={resolvedTheme.displayLabel}
+              specialAnnouncements={specialAnnouncements}
+              ministryUpdates={ministryUpdates}
               initialRecoveryMode={passwordRecoveryPending}
               initialAuthError={initialAuthCallbackState.errorDescription}
               onRecoveryComplete={() => {

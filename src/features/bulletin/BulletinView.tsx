@@ -45,6 +45,7 @@ interface BulletinViewProps {
   seasonLabel?: string;
   specialAnnouncements?: SpecialAnnouncement[];
   ministryUpdates?: MinistryUpdate[];
+  isPreview?: boolean;
 }
 
 const ARCHIVE_LABELS = ['Current', 'Last Week', '2 Wks Ago', '3 Wks Ago'] as const;
@@ -76,6 +77,7 @@ export function BulletinView({
   seasonLabel,
   specialAnnouncements = [],
   ministryUpdates = [],
+  isPreview = false,
 }: BulletinViewProps) {
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<
@@ -588,8 +590,8 @@ export function BulletinView({
         </section>
       )}
 
-      {/* Dismissible Push Opt-In Prompt ONLY if not yet subscribed (hidden once enabled) */}
-      {selectedWeekIndex === 0 && <PushOptInCard compact />}
+      {/* Dismissible Push Opt-In Prompt ONLY if not yet subscribed (hidden once enabled or in preview) */}
+      {!isPreview && selectedWeekIndex === 0 && <PushOptInCard compact />}
 
       {/* Tap-to-Reveal Sunday Collection Highlight Card */}
       {activeBulletin.collection_summary && (

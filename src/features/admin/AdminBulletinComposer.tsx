@@ -13,7 +13,8 @@ import {
   Trash2,
   Wand2,
 } from 'lucide-react';
-import { CategoryBadge } from '../../components/CategoryBadge';
+import { ErrorBoundary } from '../../components/ErrorBoundary';
+import { BulletinView } from '../bulletin/BulletinView';
 import { parseRawBulletin } from '../../lib/bulletinParser';
 import { sanitizeActionUrl, sanitizePlainText } from '../../lib/sanitize';
 import {
@@ -28,12 +29,17 @@ import {
   AnnouncementCard,
   AnnouncementCategory,
   DailyScheduleEntry,
+  MinistryUpdate,
+  SpecialAnnouncement,
   WeeklyBulletin,
 } from '../../types/parish';
 
 interface AdminBulletinComposerProps {
   initialBulletin: WeeklyBulletin;
   isSandbox: boolean;
+  seasonLabel?: string;
+  specialAnnouncements?: SpecialAnnouncement[];
+  ministryUpdates?: MinistryUpdate[];
   onSaved: () => void;
 }
 
@@ -61,6 +67,9 @@ Announcements
 export function AdminBulletinComposer({
   initialBulletin,
   isSandbox,
+  seasonLabel,
+  specialAnnouncements = [],
+  ministryUpdates = [],
   onSaved,
 }: AdminBulletinComposerProps) {
   const [mode, setMode] = useState<'paste' | 'builder' | 'preview'>('builder');
@@ -703,34 +712,57 @@ export function AdminBulletinComposer({
         </div>
       )}
 
-      {/* Mode 3: Mobile Preview */}
+      {/* Mode 3: Interactive Mobile Preview (matches exact live BulletinView & active Liturgical Theme) */}
       {mode === 'preview' && (
-        <div className="mx-auto max-w-md space-y-3 rounded-3xl border-4 border-slate-800 bg-[#FAF8F5] p-4 shadow-lg">
-          <div className="rounded-xl bg-[#1E3A5F] p-4 text-white">
-            <p className="font-serif text-sm font-semibold">“{greeting}”</p>
-            <p className="mt-1 text-[11px] text-slate-300">{title}</p>
-          </div>
-          {announcements.map((c) => (
-            <div key={c.id} className="rounded-xl border border-[#E7E2DA] bg-white p-3.5">
-              <div className="flex items-start justify-between gap-2">
-                <h4 className="text-sm font-bold text-[#1E293B]">{c.title}</h4>
-                <CategoryBadge category={c.category} />
+        <div className="mx-auto max-w-md space-y-2">
+          <p className="text-center text-[11px] font-semibold text-parish-muted">
+            Interactive Mobile Preview — tap cards, Expand All, Ministry pill, or Collection to test
+          </p>
+          <div className="overflow-hidden rounded-[2rem] border-4 border-slate-800 bg-parish-canvas shadow-xl">
+            <div className="flex items-center justify-between border-b border-parish-border bg-white/95 px-4 py-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <img
+                  src="/favicon.svg"
+                  alt=""
+                  width={26}
+                  height={26}
+                  className="h-6.5 w-6.5 shrink-0 rounded-lg"
+                />
+                <span className="truncate font-serif text-xs font-bold text-parish-navy">
+                  St. Mary&apos;s Syro-Malabar Parish
+                </span>
               </div>
-              <p className="mt-2 text-sm leading-relaxed text-[#1E293B]">{c.body}</p>
-              {c.actions.length > 0 && (
-                <div className="mt-2.5 flex flex-wrap gap-1.5">
-                  {c.actions.map((a, i) => (
-                    <span
-                      key={i}
-                      className="rounded-lg bg-[#1E3A5F] px-2.5 py-1 text-xs font-semibold text-white"
-                    >
-                      {a.label}
-                    </span>
-                  ))}
-                </div>
-              )}
+              <span className="shrink-0 rounded-full bg-parish-canvas px-2 py-0.5 text-[10px] font-semibold text-parish-muted">
+                Preview
+              </span>
             </div>
-          ))}
+
+            <div className="max-h-[75vh] overflow-y-auto p-3.5">
+              <ErrorBoundary
+                fallback={
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-900">
+                    Unable to render preview — check dates or announcement fields.
+                  </div>
+                }
+              >
+                <BulletinView
+                  bulletins={[
+                    {
+                      ...buildPayload('draft'),
+                      id: bulletinId ?? initialBulletin.id ?? 'preview-draft',
+                      updated_at: new Date().toISOString(),
+                    },
+                  ]}
+                  isLoading={false}
+                  source={isSandbox ? 'sample' : 'live'}
+                  seasonLabel={seasonLabel}
+                  specialAnnouncements={specialAnnouncements}
+                  ministryUpdates={ministryUpdates}
+                  isPreview={true}
+                />
+              </ErrorBoundary>
+            </div>
+          </div>
         </div>
       )}
 

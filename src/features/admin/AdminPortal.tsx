@@ -40,6 +40,9 @@ interface AdminPortalProps {
   regularSchedules: RegularScheduleItem[];
   parishInfo: ParishInfo;
   themeMode: ThemeMode;
+  seasonLabel?: string;
+  specialAnnouncements?: import('../../types/parish').SpecialAnnouncement[];
+  ministryUpdates?: import('../../types/parish').MinistryUpdate[];
   initialRecoveryMode?: boolean;
   initialAuthError?: string | null;
   onRecoveryComplete?: () => void;
@@ -53,6 +56,9 @@ export function AdminPortal({
   regularSchedules,
   parishInfo,
   themeMode,
+  seasonLabel,
+  specialAnnouncements = [],
+  ministryUpdates = [],
   initialRecoveryMode = false,
   initialAuthError = null,
   onRecoveryComplete,
@@ -562,6 +568,9 @@ export function AdminPortal({
             key={activeDraft.id}
             initialBulletin={activeDraft}
             isSandbox={sandboxMode}
+            seasonLabel={seasonLabel}
+            specialAnnouncements={specialAnnouncements}
+            ministryUpdates={ministryUpdates}
             onSaved={async () => {
               onDataChanged();
               if (!sandboxMode) {
