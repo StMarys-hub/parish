@@ -213,41 +213,74 @@ export function BulletinView({
   const todayIso = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="space-y-5">
-      {/* Pastoral Greeting Banner */}
-      <section className="rounded-2xl bg-gradient-to-br from-parish-navy to-parish-navy-dark p-5 text-white shadow-sm">
+    <div className="space-y-3.5">
+      {/* Compact Slim Liturgical Header + Inline Week Archive Selector */}
+      <section className="rounded-2xl bg-gradient-to-br from-parish-navy to-parish-navy-dark px-4 py-3 text-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <span
-              className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold"
+              className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold"
               style={{
                 color: 'var(--parish-hero-badge-text)',
                 borderColor: 'var(--parish-hero-badge-border)',
                 backgroundColor: 'var(--parish-hero-badge-bg)',
               }}
             >
-              <Sparkles className="h-3.5 w-3.5" />
+              <Sparkles className="h-3 w-3" />
               {formatShortDate(activeBulletin.week_start)} – {formatShortDate(activeBulletin.week_end)}
             </span>
             {seasonLabel && (
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/90">
+              <span className="rounded-full bg-white/12 px-2.5 py-0.5 text-[11px] font-medium text-white/95">
                 {seasonLabel}
               </span>
             )}
+            {source !== 'live' && (
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-slate-200">
+                {source === 'cache' ? 'Offline Copy' : 'Sample Preview'}
+              </span>
+            )}
           </div>
-          {source !== 'live' && (
-            <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-medium text-slate-200">
-              {source === 'cache' ? 'Offline Copy' : 'Sample Preview'}
+
+          {bulletins.length > 1 && (
+            <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-white/90">
+              <span className="sr-only">Select archive week</span>
+              <select
+                aria-label="Bulletin week selector"
+                value={selectedWeekIndex}
+                onChange={(e) => {
+                  setSelectedWeekIndex(Number(e.target.value));
+                  setSelectedCategory('All');
+                  setExpandedCardIds(new Set());
+                }}
+                className="rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-xs focus:outline-none focus:ring-2 focus:ring-white/40"
+              >
+                {bulletins.slice(0, 4).map((b, idx) => (
+                  <option key={b.id} value={idx} className="bg-slate-900 text-white">
+                    {ARCHIVE_LABELS[idx] ?? `Week ${idx + 1}`} ({formatShortDate(b.week_start)})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+
+        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+          <p className="truncate font-serif text-sm font-medium text-[#FAF8F5]/95 sm:text-base">
+            {activeBulletin.greeting &&
+            !/^praise be to jesus christ/i.test(activeBulletin.greeting.trim())
+              ? `“${activeBulletin.greeting}”`
+              : activeBulletin.title}
+          </p>
+          {PHASE_FLAGS.unreadIndicators && unreadVisibleKeys.length > 0 && (
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-rose-500/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+              <span className="h-1.5 w-1.5 rounded-full bg-white" />
+              {unreadVisibleKeys.length} Unread
             </span>
           )}
         </div>
-        <p className="mt-3 font-serif text-lg font-semibold leading-snug text-[#FAF8F5] sm:text-xl">
-          “{activeBulletin.greeting}”
-        </p>
-        <p className="mt-1 text-xs text-slate-200">{activeBulletin.title}</p>
       </section>
 
-      {/* Standalone Vicar / Special Announcements (Highlighted above & separate from weekly archive) */}
+      {/* Standalone Vicar / Special Announcements (Highlighted immediately below slim header) */}
       {PHASE_FLAGS.specialAnnouncements && specialAnnouncements.length > 0 && (
         <ErrorBoundary>
           <SpecialAnnouncementsFeed
@@ -258,128 +291,6 @@ export function BulletinView({
             onMarkRead={markRead}
           />
         </ErrorBoundary>
-      )}
-
-      {/* 3-Week Rolling Archive Switcher */}
-      {bulletins.length > 1 && (
-        <nav aria-label="Bulletin archive weeks" className="grid grid-cols-4 gap-1.5 rounded-xl border border-parish-border bg-white p-1">
-          {bulletins.slice(0, 4).map((b, idx) => {
-            const active = idx === selectedWeekIndex;
-            return (
-              <button
-                key={b.id}
-                type="button"
-                onClick={() => {
-                  setSelectedWeekIndex(idx);
-                  setSelectedCategory('All');
-                  setExpandedCardIds(new Set());
-                }}
-                className={`rounded-lg px-2 py-2 text-center text-xs font-semibold transition-colors ${
-                  active
-                    ? 'bg-parish-navy text-white shadow-2xs'
-                    : 'text-parish-muted hover:bg-parish-canvas hover:text-parish-ink'
-                }`}
-              >
-                <span className="block truncate">{ARCHIVE_LABELS[idx] ?? `Week ${idx + 1}`}</span>
-                <span className={`block text-[10px] font-normal ${active ? 'text-slate-200' : 'text-slate-400'}`}>
-                  {formatShortDate(b.week_start)}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-      )}
-
-      {/* Push Opt-In Banner (Compact when already subscribed) */}
-      {selectedWeekIndex === 0 && <PushOptInCard compact />}
-
-      {/* This Week's Dynamic Liturgical Schedule Accordion */}
-      {activeBulletin.daily_schedule.length > 0 && (
-        <section className="overflow-hidden rounded-2xl border border-parish-border bg-white shadow-2xs">
-          <button
-            type="button"
-            onClick={() => setScheduleExpanded((v) => !v)}
-            aria-expanded={scheduleExpanded}
-            className="flex w-full items-center justify-between px-4 py-3.5 text-left hover:bg-parish-canvas/70"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="rounded-lg bg-parish-navy/10 p-2 text-parish-navy">
-                <Calendar className="h-4 w-4" />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-parish-ink">
-                  This Week’s Holy Qurbana & Services
-                </h2>
-                <p className="text-xs text-parish-muted">
-                  {scheduleExpanded ? 'Tap to collapse daily times' : 'Tap to expand full 7-day parish schedule'}
-                </p>
-              </div>
-            </div>
-            {scheduleExpanded ? (
-              <ChevronUp className="h-5 w-5 text-parish-muted" />
-            ) : (
-              <ChevronDown className="h-5 w-5 text-parish-muted" />
-            )}
-          </button>
-
-          {scheduleExpanded && (
-            <div className="divide-y divide-parish-border border-t border-parish-border">
-              {activeBulletin.daily_schedule.map((day) => {
-                const isToday = day.date === todayIso;
-                return (
-                  <div
-                    key={day.date}
-                    className={`px-4 py-3 ${isToday ? 'bg-parish-gold-soft/60' : 'bg-white'}`}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-parish-ink">
-                          {day.dayLabel}
-                        </span>
-                        <span className="text-xs text-parish-muted">
-                          {formatShortDate(day.date)}
-                        </span>
-                        {isToday && (
-                          <span className="rounded-full bg-parish-navy px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-                            Today
-                          </span>
-                        )}
-                      </div>
-                      {day.feastNote && (
-                        <span className="rounded-full border border-parish-gold/30 bg-parish-gold-soft px-2.5 py-0.5 text-[11px] font-semibold text-parish-gold-ink">
-                          {day.feastNote}
-                        </span>
-                      )}
-                    </div>
-
-                    <ul className="mt-2 space-y-1.5">
-                      {day.items.map((svc, sIdx) => (
-                        <li key={sIdx} className="flex items-start gap-2 text-sm text-parish-ink">
-                          {svc.time ? (
-                            <span className="inline-flex shrink-0 items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-parish-navy">
-                              <Clock className="h-3 w-3" />
-                              {svc.time}
-                            </span>
-                          ) : (
-                            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" />
-                          )}
-                          <span>
-                            {svc.title}
-                            {svc.celebrant && (
-                              <span className="ml-1.5 text-xs font-medium text-parish-muted">
-                                ({svc.celebrant})
-                              </span>
-                            )}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
       )}
 
       {/* Horizontal Category Filter Pills */}
@@ -590,6 +501,96 @@ export function BulletinView({
           })}
         </div>
       )}
+
+      {/* Weekly Holy Qurbana Schedule & Offertory placed cleanly below primary updates */}
+      {activeBulletin.daily_schedule.length > 0 && (
+        <section className="overflow-hidden rounded-2xl border border-parish-border bg-white shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setScheduleExpanded((v) => !v)}
+            aria-expanded={scheduleExpanded}
+            className="flex w-full items-center justify-between px-4 py-3.5 text-left hover:bg-parish-canvas/70"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="rounded-lg bg-parish-navy/10 p-2 text-parish-navy">
+                <Calendar className="h-4 w-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-parish-ink">
+                  This Week’s Holy Qurbana &amp; Services
+                </h2>
+                <p className="text-xs text-parish-muted">
+                  {scheduleExpanded
+                    ? 'Tap to collapse daily times'
+                    : 'Tap to expand full 7-day parish schedule'}
+                </p>
+              </div>
+            </div>
+            {scheduleExpanded ? (
+              <ChevronUp className="h-5 w-5 text-parish-muted" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-parish-muted" />
+            )}
+          </button>
+
+          {scheduleExpanded && (
+            <div className="divide-y divide-parish-border border-t border-parish-border">
+              {activeBulletin.daily_schedule.map((day) => {
+                const isToday = day.date === todayIso;
+                return (
+                  <div
+                    key={day.date}
+                    className={`px-4 py-3 ${isToday ? 'bg-parish-gold-soft/60' : 'bg-white'}`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-parish-ink">{day.dayLabel}</span>
+                        <span className="text-xs text-parish-muted">
+                          {formatShortDate(day.date)}
+                        </span>
+                        {isToday && (
+                          <span className="rounded-full bg-parish-navy px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                            Today
+                          </span>
+                        )}
+                      </div>
+                      {day.feastNote && (
+                        <span className="rounded-full border border-parish-gold/30 bg-parish-gold-soft px-2.5 py-0.5 text-[11px] font-semibold text-parish-gold-ink">
+                          {day.feastNote}
+                        </span>
+                      )}
+                    </div>
+
+                    <ul className="mt-2 space-y-1.5">
+                      {day.items.map((svc, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm">
+                          {svc.time && (
+                            <span className="inline-flex shrink-0 items-center gap-1 pt-0.5 font-semibold text-parish-navy">
+                              <Clock className="h-3.5 w-3.5 text-parish-gold" />
+                              {svc.time}
+                            </span>
+                          )}
+                          <span className="text-parish-ink">
+                            {svc.title}
+                            {svc.celebrant && (
+                              <span className="ml-1.5 text-xs font-medium text-parish-muted">
+                                ({svc.celebrant})
+                              </span>
+                            )}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Dismissible Push Opt-In Prompt ONLY if not yet subscribed (hidden once enabled) */}
+      {selectedWeekIndex === 0 && <PushOptInCard compact />}
 
       {/* Tap-to-Reveal Sunday Collection Highlight Card */}
       {activeBulletin.collection_summary && (

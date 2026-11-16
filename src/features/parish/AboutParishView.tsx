@@ -66,7 +66,9 @@ export function AboutParishView({ info, onOpenAdmin, onOpenReimbursements }: Abo
       <InstallShareBanner variant="card" />
 
       {/* Push Notification Settings */}
-      <PushOptInCard />
+      <div id="parish-alerts-section">
+        <PushOptInCard />
+      </div>
 
       {/* Parishioner Expense Reimbursement Portal */}
       {PHASE_FLAGS.reimbursements && onOpenReimbursements && (

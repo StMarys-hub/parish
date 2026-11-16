@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BookOpen, CalendarDays, Info } from 'lucide-react';
+import { Bell, BookOpen, CalendarDays, Info } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 import { PHASE_FLAGS } from './config/features';
@@ -16,6 +16,7 @@ import { ReimbursementPortal } from './features/reimbursements/ReimbursementPort
 import { SchedulesView } from './features/schedules/SchedulesView';
 import { applyThemeToDocument, resolveActiveTheme } from './lib/themeEngine';
 import { initialAuthCallbackState, supabase } from './lib/supabase';
+import { hasLocalPushPreference } from './services/pushService';
 import {
   fetchAppSettings,
   fetchParishInfo,
@@ -183,49 +184,77 @@ export function App() {
             </div>
           </button>
 
-          {/* Desktop Navigation */}
+          {/* Desktop Navigation + Compact Alerts Shortcut */}
           {activeTab !== 'admin' && (
-            <nav aria-label="Primary navigation" className="hidden gap-1 sm:flex">
+            <div className="flex items-center gap-1.5">
+              <nav aria-label="Primary navigation" className="hidden gap-1 sm:flex">
+                <button
+                  type="button"
+                  onClick={() => navigate('bulletin')}
+                  className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors ${
+                    activeTab === 'bulletin'
+                      ? 'bg-parish-navy text-white'
+                      : 'text-parish-muted hover:bg-parish-canvas hover:text-parish-ink'
+                  }`}
+                >
+                  Bulletin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('schedules')}
+                  className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors ${
+                    activeTab === 'schedules'
+                      ? 'bg-parish-navy text-white'
+                      : 'text-parish-muted hover:bg-parish-canvas hover:text-parish-ink'
+                  }`}
+                >
+                  Schedules
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('about')}
+                  className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors ${
+                    activeTab === 'about'
+                      ? 'bg-parish-navy text-white'
+                      : 'text-parish-muted hover:bg-parish-canvas hover:text-parish-ink'
+                  }`}
+                >
+                  About Parish
+                </button>
+              </nav>
               <button
                 type="button"
-                onClick={() => navigate('bulletin')}
-                className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors ${
-                  activeTab === 'bulletin'
-                    ? 'bg-parish-navy text-white'
-                    : 'text-parish-muted hover:bg-parish-canvas hover:text-parish-ink'
-                }`}
+                title={
+                  hasLocalPushPreference()
+                    ? 'Parish alerts enabled — tap to manage in About Parish'
+                    : 'Manage parish push alert settings'
+                }
+                aria-label="Manage parish alert settings"
+                onClick={() => {
+                  navigate('about');
+                  window.setTimeout(() => {
+                    document
+                      .getElementById('parish-alerts-section')
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }, 120);
+                }}
+                className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-parish-border bg-parish-canvas text-parish-navy hover:bg-slate-100"
               >
-                Bulletin
+                <Bell className="h-4 w-4" />
+                {hasLocalPushPreference() && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white"
+                  />
+                )}
               </button>
-              <button
-                type="button"
-                onClick={() => navigate('schedules')}
-                className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors ${
-                  activeTab === 'schedules'
-                    ? 'bg-parish-navy text-white'
-                    : 'text-parish-muted hover:bg-parish-canvas hover:text-parish-ink'
-                }`}
-              >
-                Schedules
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('about')}
-                className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors ${
-                  activeTab === 'about'
-                    ? 'bg-parish-navy text-white'
-                    : 'text-parish-muted hover:bg-parish-canvas hover:text-parish-ink'
-                }`}
-              >
-                About Parish
-              </button>
-            </nav>
+            </div>
           )}
         </div>
       </header>
 
       {/* Main Content Container */}
-      <main className="mx-auto max-w-3xl px-4 pt-5">
+      <main className="mx-auto max-w-3xl px-4 pt-3.5">
         {activeTab !== 'admin' && (
           <ErrorBoundary>
             <InstallShareBanner variant="banner" />

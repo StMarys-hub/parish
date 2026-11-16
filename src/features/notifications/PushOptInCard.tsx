@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, BellOff, CheckCircle2, Share, Smartphone } from 'lucide-react';
+import { Bell, BellOff, CheckCircle2, Share, Smartphone, X } from 'lucide-react';
 import {
   getCurrentPushSubscription,
   getPushSupportState,
@@ -9,9 +9,18 @@ import {
   unsubscribeFromParishPush,
 } from '../../services/pushService';
 
+const COMPACT_PUSH_DISMISS_KEY = 'parish_push_compact_dismissed_v1';
+
 export function PushOptInCard({ compact = false }: { compact?: boolean }) {
   const [support, setSupport] = useState<PushSupportState>('unsupported');
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [compactDismissed, setCompactDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(COMPACT_PUSH_DISMISS_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -28,6 +37,20 @@ export function PushOptInCard({ compact = false }: { compact?: boolean }) {
   if (support === 'unconfigured' || support === 'unsupported') {
     return null;
   }
+
+  // Once subscribed, keep the home Bulletin feed clean (manage alerts from About Parish or header bell)
+  if (compact && (isSubscribed || compactDismissed)) {
+    return null;
+  }
+
+  const dismissCompactBanner = () => {
+    setCompactDismissed(true);
+    try {
+      localStorage.setItem(COMPACT_PUSH_DISMISS_KEY, '1');
+    } catch {
+      // Ignore storage quota issues
+    }
+  };
 
   const handleSubscribe = async () => {
     setLoading(true);
@@ -59,8 +82,18 @@ export function PushOptInCard({ compact = false }: { compact?: boolean }) {
 
   if (support === 'ios-needs-homescreen') {
     return (
-      <div className="rounded-2xl border border-parish-border bg-parish-gold-soft/70 p-4">
-        <div className="flex items-start gap-3">
+      <div className="relative rounded-2xl border border-parish-border bg-parish-gold-soft/70 p-4">
+        {compact && (
+          <button
+            type="button"
+            onClick={dismissCompactBanner}
+            aria-label="Dismiss iOS alert instructions"
+            className="absolute right-2.5 top-2.5 rounded-lg p-1 text-parish-muted hover:bg-white/70"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+        <div className="flex items-start gap-3 pr-5">
           <div className="rounded-xl bg-parish-navy p-2 text-white">
             <Smartphone className="h-5 w-5" />
           </div>
@@ -87,27 +120,18 @@ export function PushOptInCard({ compact = false }: { compact?: boolean }) {
     );
   }
 
-  if (compact && isSubscribed) {
-    return (
-      <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2.5 text-xs">
-        <span className="inline-flex items-center gap-1.5 font-medium text-emerald-900">
-          <CheckCircle2 className="h-4 w-4 text-emerald-700" />
-          Parish alerts enabled on this device
-        </span>
+  return (
+    <div className="relative rounded-2xl border border-parish-border bg-white p-4 shadow-2xs">
+      {compact && (
         <button
           type="button"
-          onClick={handleUnsubscribe}
-          disabled={loading}
-          className="font-semibold text-emerald-800 underline hover:text-emerald-950"
+          onClick={dismissCompactBanner}
+          aria-label="Dismiss notification prompt"
+          className="absolute right-2.5 top-2.5 rounded-lg p-1 text-parish-muted hover:bg-parish-canvas"
         >
-          {loading ? 'Updating...' : 'Turn off'}
+          <X className="h-4 w-4" />
         </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl border border-parish-border bg-white p-4 shadow-2xs">
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <div className="rounded-xl bg-parish-navy/10 p-2.5 text-parish-navy">
