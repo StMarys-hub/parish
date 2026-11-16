@@ -274,3 +274,38 @@ export interface ReactionSummary {
   count: number;
   reactedByMe: boolean;
 }
+
+export type ReimbursementGateMode =
+  | 'pin_and_login'
+  | 'allowlist_only'
+  | 'login_with_rate_limit';
+
+export interface ReimbursementAccessStatus {
+  email: string;
+  isAdmin: boolean;
+  gateMode: ReimbursementGateMode;
+  hasPinConfigured: boolean;
+  canSubmit: boolean;
+  isBlocked: boolean;
+  isApproved: boolean;
+  pinVerified: boolean;
+  maxPer24h: number;
+  remainingToday: number;
+}
+
+export interface ReimbursementSecurityConfig {
+  gateMode: ReimbursementGateMode;
+  hasPinConfigured: boolean;
+  maxSubmissionsPer24h: number;
+  updatedAt?: string | null;
+}
+
+export interface ReimbursementSubmitter {
+  email: string;
+  full_name?: string | null;
+  ministry?: string | null;
+  is_approved: boolean;
+  is_blocked: boolean;
+  pin_verified_at?: string | null;
+  updated_at: string;
+}

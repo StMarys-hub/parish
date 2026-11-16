@@ -1,23 +1,36 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
+  Ban,
   CheckCircle2,
+  ChevronDown,
   DollarSign,
   ExternalLink,
   Eye,
+  Lock,
+  Plus,
   Receipt,
   RefreshCw,
   ShieldAlert,
+  ShieldCheck,
+  Trash2,
   X,
   XCircle,
 } from 'lucide-react';
 import {
+  deleteReimbursementSubmitter,
   fetchAdminReimbursements,
+  fetchReimbursementSecurity,
   reviewAdminReimbursement,
+  updateReimbursementSecurity,
+  upsertReimbursementSubmitter,
 } from '../../services/phase3Repository';
 import {
   AdminUserProfile,
   ReimbursementClaim,
+  ReimbursementGateMode,
+  ReimbursementSecurityConfig,
   ReimbursementStatus,
+  ReimbursementSubmitter,
 } from '../../types/parish';
 
 interface TrusteeReimbursementQueueProps {
@@ -47,6 +60,19 @@ export function TrusteeReimbursementQueue({
   const [declineTarget, setDeclineTarget] = useState<ReimbursementClaim | null>(null);
   const [declineReason, setDeclineReason] = useState('');
 
+  // Anti-spam access control state
+  const [securityOpen, setSecurityOpen] = useState(false);
+  const [secConfig, setSecConfig] = useState<ReimbursementSecurityConfig>({
+    gateMode: 'pin_and_login',
+    hasPinConfigured: false,
+    maxSubmissionsPer24h: 3,
+  });
+  const [newPin, setNewPin] = useState('');
+  const [savingSec, setSavingSec] = useState(false);
+  const [submitters, setSubmitters] = useState<ReimbursementSubmitter[]>([]);
+  const [newApproveEmail, setNewApproveEmail] = useState('');
+  const [newApproveName, setNewApproveName] = useState('');
+
   const canReviewFinancials =
     isSandbox ||
     currentUser?.role === 'trustee' ||
@@ -57,8 +83,16 @@ export function TrusteeReimbursementQueue({
     if (isSandbox) return;
     setLoading(true);
     try {
-      const rows = await fetchAdminReimbursements(filter);
+      const [rows, secRes] = await Promise.all([
+        fetchAdminReimbursements(filter),
+        fetchReimbursementSecurity(),
+      ]);
       setClaims(rows);
+      setSecConfig(secRes.config);
+      setSubmitters(secRes.submitters);
+      if (!secRes.config.hasPinConfigured && secRes.config.gateMode === 'pin_and_login') {
+        setSecurityOpen(true);
+      }
     } catch (err) {
       setToast({
         type: 'err',
@@ -108,10 +142,76 @@ export function TrusteeReimbursementQueue({
     }
   };
 
+  const handleSaveSecurity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSec(true);
+    setToast(null);
+    try {
+      await updateReimbursementSecurity({
+        gateMode: secConfig.gateMode,
+        maxSubmissionsPer24h: secConfig.maxSubmissionsPer24h,
+        ...(newPin.trim() ? { newPin: newPin.trim() } : {}),
+      });
+      setNewPin('');
+      setToast({
+        type: 'ok',
+        text: 'Reimbursement anti-spam & access control updated cleanly.',
+      });
+      await loadQueue();
+    } catch (err) {
+      setToast({
+        type: 'err',
+        text: err instanceof Error ? err.message : 'Failed to save anti-spam settings.',
+      });
+    } finally {
+      setSavingSec(false);
+    }
+  };
+
+  const handleApproveEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newApproveEmail.trim()) return;
+    setSavingSec(true);
+    setToast(null);
+    try {
+      await upsertReimbursementSubmitter({
+        email: newApproveEmail.trim().toLowerCase(),
+        fullName: newApproveName.trim() || undefined,
+        isApproved: true,
+        isBlocked: false,
+      });
+      setNewApproveEmail('');
+      setNewApproveName('');
+      await loadQueue();
+      setToast({ type: 'ok', text: 'Ministry submitter approved.' });
+    } catch (err) {
+      setToast({
+        type: 'err',
+        text: err instanceof Error ? err.message : 'Failed to approve email.',
+      });
+    } finally {
+      setSavingSec(false);
+    }
+  };
+
+  const handleToggleSubmitter = async (
+    sub: ReimbursementSubmitter,
+    patch: { isApproved?: boolean; isBlocked?: boolean }
+  ) => {
+    await upsertReimbursementSubmitter({
+      email: sub.email,
+      fullName: sub.full_name ?? undefined,
+      ministry: sub.ministry ?? undefined,
+      isApproved: patch.isApproved ?? sub.is_approved,
+      isBlocked: patch.isBlocked ?? sub.is_blocked,
+    });
+    await loadQueue();
+  };
+
   if (isSandbox) {
     return (
       <div className="rounded-2xl border border-parish-border bg-white p-6 text-center text-xs text-parish-muted">
-        Connect Supabase to review live parishioner reimbursement submissions and signed receipts.
+        Connect Supabase to review live parishioner reimbursement submissions and anti-spam settings.
       </div>
     );
   }
@@ -122,7 +222,7 @@ export function TrusteeReimbursementQueue({
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
         <span>
           Only verified <strong>Trustees</strong> and <strong>Super Admin / Vicar</strong> accounts
-          may inspect private receipts and approve or pay reimbursements.
+          may inspect private receipts and manage reimbursement anti-spam settings.
         </span>
       </div>
     );
@@ -138,7 +238,7 @@ export function TrusteeReimbursementQueue({
           <div>
             <h3 className="text-sm font-bold text-parish-ink">Trustee Reimbursement Queue</h3>
             <p className="text-xs text-parish-muted">
-              Private receipts load via 5-minute signed URLs; every approval/payout is audit logged.
+              Device login + anti-spam gate protects uploads; receipts load via 5-min signed URLs.
             </p>
           </div>
         </div>
@@ -152,6 +252,214 @@ export function TrusteeReimbursementQueue({
           Refresh
         </button>
       </div>
+
+      {/* Collapsible Anti-Spam & Access Control Panel */}
+      <section className="overflow-hidden rounded-2xl border border-parish-border bg-white shadow-2xs">
+        <button
+          type="button"
+          aria-expanded={securityOpen}
+          onClick={() => setSecurityOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-parish-canvas/60"
+        >
+          <div className="flex items-center gap-2.5">
+            <Lock className="h-4 w-4 text-parish-navy" />
+            <div>
+              <p className="text-xs font-bold text-parish-ink">
+                Anti-Spam &amp; Access Control (Mode:{' '}
+                <span className="text-parish-navy">
+                  {secConfig.gateMode === 'pin_and_login'
+                    ? 'Device Login + Parish PIN'
+                    : secConfig.gateMode === 'allowlist_only'
+                      ? 'Approved Emails Only'
+                      : 'Device Login + Daily Limit'}
+                </span>
+                )
+              </p>
+              {!secConfig.hasPinConfigured && secConfig.gateMode === 'pin_and_login' && (
+                <p className="text-[11px] font-semibold text-amber-800">
+                  Set a Parish Submission PIN below so ministry leads can unlock receipt uploads.
+                </p>
+              )}
+            </div>
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 text-parish-navy transition-transform duration-200 ${
+              securityOpen ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+
+        {securityOpen && (
+          <div className="space-y-4 border-t border-parish-border p-4 text-xs">
+            <form onSubmit={handleSaveSecurity} className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="block font-semibold text-parish-muted">Protection Mode</label>
+                  <select
+                    value={secConfig.gateMode}
+                    onChange={(e) =>
+                      setSecConfig((c) => ({
+                        ...c,
+                        gateMode: e.target.value as ReimbursementGateMode,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-xl border border-parish-border bg-white px-3 py-2 text-xs font-medium"
+                  >
+                    <option value="pin_and_login">
+                      Device Login + Parish PIN (Recommended)
+                    </option>
+                    <option value="allowlist_only">Approved Emails Only (Strict)</option>
+                    <option value="login_with_rate_limit">Device Login + Rate Limit</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-parish-muted">
+                    {secConfig.hasPinConfigured
+                      ? 'Rotate Parish PIN (Leave blank to keep)'
+                      : 'Set Parish Submission PIN *'}
+                  </label>
+                  <input
+                    type="text"
+                    value={newPin}
+                    onChange={(e) => setNewPin(e.target.value)}
+                    placeholder={secConfig.hasPinConfigured ? '•••••• (Configured)' : 'e.g. STMARY2026'}
+                    className="mt-1 w-full rounded-xl border border-parish-border px-3 py-2 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-parish-muted">
+                    Max Uploads / User / 24h
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={25}
+                    value={secConfig.maxSubmissionsPer24h}
+                    onChange={(e) =>
+                      setSecConfig((c) => ({
+                        ...c,
+                        maxSubmissionsPer24h: Number(e.target.value) || 3,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-xl border border-parish-border px-3 py-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={savingSec}
+                className="rounded-xl bg-parish-navy px-4 py-2 text-xs font-semibold text-white hover:bg-parish-navy-dark disabled:opacity-50"
+              >
+                {savingSec ? 'Saving...' : 'Save Anti-Spam Settings'}
+              </button>
+            </form>
+
+            {/* Approved Submitters & Block List */}
+            <div className="space-y-2 border-t border-parish-border pt-3">
+              <p className="font-bold text-parish-ink">
+                Pre-Approved Emails &amp; Blocked Accounts ({submitters.length})
+              </p>
+              <form onSubmit={handleApproveEmail} className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <input
+                  type="email"
+                  required
+                  value={newApproveEmail}
+                  onChange={(e) => setNewApproveEmail(e.target.value)}
+                  placeholder="ministry.lead@email.com"
+                  className="rounded-xl border border-parish-border px-3 py-1.5 text-xs"
+                />
+                <input
+                  type="text"
+                  value={newApproveName}
+                  onChange={(e) => setNewApproveName(e.target.value)}
+                  placeholder="Name (optional)"
+                  className="rounded-xl border border-parish-border px-3 py-1.5 text-xs"
+                />
+                <button
+                  type="submit"
+                  disabled={savingSec}
+                  className="inline-flex items-center justify-center gap-1 rounded-xl border border-parish-navy/30 bg-parish-navy/5 px-3 py-1.5 text-xs font-semibold text-parish-navy hover:bg-parish-navy/10"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Pre-Approve Email
+                </button>
+              </form>
+
+              {submitters.length > 0 && (
+                <div className="max-h-48 space-y-1.5 overflow-y-auto pt-1">
+                  {submitters.map((sub) => (
+                    <div
+                      key={sub.email}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-parish-border px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-semibold text-parish-ink">{sub.email}</span>
+                        {sub.full_name && (
+                          <span className="ml-1.5 text-parish-muted">({sub.full_name})</span>
+                        )}
+                        <div className="flex flex-wrap gap-1.5 pt-0.5 text-[10px]">
+                          {sub.is_approved && (
+                            <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-semibold text-emerald-700">
+                              Approved
+                            </span>
+                          )}
+                          {sub.pin_verified_at && (
+                            <span className="rounded bg-sky-50 px-1.5 py-0.5 font-semibold text-sky-700">
+                              PIN Verified
+                            </span>
+                          )}
+                          {sub.is_blocked && (
+                            <span className="rounded bg-rose-50 px-1.5 py-0.5 font-semibold text-rose-700">
+                              Blocked
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleToggleSubmitter(sub, { isBlocked: !sub.is_blocked })
+                          }
+                          className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold ${
+                            sub.is_blocked
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : 'border-rose-200 bg-rose-50 text-rose-700'
+                          }`}
+                        >
+                          {sub.is_blocked ? (
+                            <>
+                              <ShieldCheck className="h-3 w-3" /> Unblock
+                            </>
+                          ) : (
+                            <>
+                              <Ban className="h-3 w-3" /> Block
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await deleteReimbursementSubmitter(sub.email);
+                            await loadQueue();
+                          }}
+                          className="rounded-lg border border-parish-border p-1 text-parish-muted hover:text-rose-700"
+                          aria-label="Remove entry"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
 
       {toast && (
         <div

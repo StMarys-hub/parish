@@ -1,8 +1,9 @@
 // Supabase Edge Function: reimbursements
-// Handles:
-// 1. Parishioner bill/receipt submission (`multipart/form-data`) into private `receipts` bucket
-// 2. Privacy-safe claim tracking via SHA-256 claimSecret OR (referenceCode + contactInfo) + 5-min signed receipt URLs
-// 3. Verified Trustee / Super Admin (Vicar) queue listing & approval/paid/decline workflow + audit logs
+// Enforces Authenticated Device Login + Admin-Configurable Anti-Spam Gate:
+// 1. Parishioners MUST sign in with Supabase Auth (no anonymous uploads).
+// 2. Anti-spam gates: Parish Access PIN + Device Login | Approved Emails Only | Rate-Limited Login.
+// 3. Server-side magic-byte file verification + per-user 24h rate limiting + honeypot check.
+// 4. Verified Trustee / Super Admin (Vicar) queue, receipt signing, and access control management.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -24,6 +25,11 @@ const ALLOWED_PAYOUT_METHODS = new Set([
   "Check",
   "Zelle",
   "Direct Reimbursement",
+]);
+const ALLOWED_GATE_MODES = new Set([
+  "pin_and_login",
+  "allowlist_only",
+  "login_with_rate_limit",
 ]);
 const SIGNED_URL_TTL_SECONDS = 300; // 5-minute short-lived URL
 
@@ -49,19 +55,16 @@ function cleanText(input: unknown, maxLen = 500): string {
     .slice(0, maxLen);
 }
 
-function normalizeContact(input: string): string {
-  const trimmed = input.trim().toLowerCase();
-  if (trimmed.includes("@")) return trimmed;
-  const digits = trimmed.replace(/\D/g, "");
-  return digits.length >= 7 ? digits.slice(-10) : trimmed;
-}
-
 async function sha256Hex(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+}
+
+async function hashParishPin(pin: string): Promise<string> {
+  return sha256Hex(`parish-reimb-pin-v1:${pin.trim().toUpperCase()}`);
 }
 
 function generateRandomHex(byteLength: number): string {
@@ -92,6 +95,32 @@ function getFileExtension(mimeType: string, originalName: string): string {
   return match ? match[1] : "bin";
 }
 
+function verifyMagicBytes(bytes: Uint8Array, mimeType: string): boolean {
+  if (bytes.length < 12) return false;
+  if (mimeType === "image/jpeg") {
+    return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  }
+  if (mimeType === "image/png") {
+    return bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+  }
+  if (mimeType === "image/webp") {
+    return (
+      bytes[0] === 0x52 &&
+      bytes[1] === 0x49 &&
+      bytes[2] === 0x46 &&
+      bytes[3] === 0x46 &&
+      bytes[8] === 0x57 &&
+      bytes[9] === 0x45 &&
+      bytes[10] === 0x42 &&
+      bytes[11] === 0x50
+    );
+  }
+  if (mimeType === "application/pdf") {
+    return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+  }
+  return false;
+}
+
 function isTrusteeOrVicar(role: string | null | undefined): boolean {
   return role === "super_admin" || role === "vicar" || role === "trustee";
 }
@@ -114,7 +143,7 @@ async function sanitizeClaimRow(
     id: row.id,
     reference_code: row.reference_code,
     full_name: row.full_name,
-    ...(includeContact ? { contact_info: row.contact_info } : {}),
+    ...(includeContact ? { contact_info: row.contact_info, submitter_email: row.submitter_email } : {}),
     ministry: row.ministry,
     expense_date: row.expense_date,
     amount_cents: row.amount_cents,
@@ -133,7 +162,7 @@ async function sanitizeClaimRow(
   };
 }
 
-async function verifyTrusteeAdmin(
+async function verifySignedInCaller(
   req: Request,
   supabaseUrl: string,
   supabaseAnonKey: string,
@@ -141,15 +170,19 @@ async function verifyTrusteeAdmin(
 ) {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
-    return { error: jsonError("Missing Authorization header", 401), admin: null };
+    return { error: jsonError("Device login required to submit or track receipts.", 401), user: null, admin: null };
   }
 
   const userClient = createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: authHeader } },
   });
   const { data: authData, error: authErr } = await userClient.auth.getUser();
-  if (authErr || !authData?.user) {
-    return { error: jsonError("Invalid or expired session", 401), admin: null };
+  if (authErr || !authData?.user || !authData.user.email) {
+    return {
+      error: jsonError("Device login session expired or invalid. Please sign in again.", 401),
+      user: null,
+      admin: null,
+    };
   }
 
   const { data: adminRow } = await adminClient
@@ -159,14 +192,73 @@ async function verifyTrusteeAdmin(
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!adminRow || !isTrusteeOrVicar(adminRow.role)) {
-    return {
-      error: jsonError("Forbidden: Only verified Trustees and Super Admin (Vicar) can manage reimbursements", 403),
-      admin: null,
-    };
+  return { error: null, user: authData.user, admin: adminRow ?? null };
+}
+
+async function getSubmitterEligibility(
+  adminClient: ReturnType<typeof createClient>,
+  userId: string,
+  userEmail: string,
+  isAdmin: boolean
+) {
+  const normalizedEmail = userEmail.trim().toLowerCase();
+
+  const [{ data: secRow }, { data: subRow }] = await Promise.all([
+    adminClient.from("reimbursement_security_config").select("*").eq("id", 1).maybeSingle(),
+    adminClient
+      .from("reimbursement_submitters")
+      .select("*")
+      .eq("email", normalizedEmail)
+      .maybeSingle(),
+  ]);
+
+  const gateMode = (secRow?.gate_mode as string) || "pin_and_login";
+  const hasPinConfigured = Boolean(secRow?.pin_hash);
+  const maxPer24h = Number(secRow?.max_submissions_per_24h ?? 3);
+
+  const isBlocked = Boolean(subRow?.is_blocked) && !isAdmin;
+  const isApproved = isAdmin || Boolean(subRow?.is_approved);
+
+  // PIN verification stays valid until Trustees rotate/update the PIN
+  const pinVerifiedAt = subRow?.pin_verified_at ? Date.parse(String(subRow.pin_verified_at)) : 0;
+  const configUpdatedAt = secRow?.updated_at ? Date.parse(String(secRow.updated_at)) : 0;
+  const pinVerified =
+    hasPinConfigured && Boolean(subRow?.pin_verified_at) && pinVerifiedAt >= configUpdatedAt;
+
+  let canSubmit = false;
+  if (!isBlocked) {
+    if (isApproved) {
+      canSubmit = true;
+    } else if (gateMode === "login_with_rate_limit") {
+      canSubmit = true;
+    } else if (gateMode === "pin_and_login") {
+      canSubmit = pinVerified;
+    } else if (gateMode === "allowlist_only") {
+      canSubmit = false;
+    }
   }
 
-  return { error: null, admin: adminRow };
+  const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count: recentCount } = await adminClient
+    .from("reimbursements")
+    .select("id", { count: "exact", head: true })
+    .eq("submitter_user_id", userId)
+    .gte("created_at", sinceIso);
+
+  const remainingToday = Math.max(0, maxPer24h - (recentCount ?? 0));
+
+  return {
+    gateMode,
+    hasPinConfigured,
+    pinHash: (secRow?.pin_hash as string | null) ?? null,
+    maxPer24h,
+    recentCount: recentCount ?? 0,
+    remainingToday,
+    isBlocked,
+    isApproved,
+    pinVerified,
+    canSubmit,
+  };
 }
 
 Deno.serve(async (req: Request) => {
@@ -184,6 +276,15 @@ Deno.serve(async (req: Request) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+    // Every reimbursement operation requires authenticated Device Login (no anonymous calls)
+    const { error: callerErr, user, admin } = await verifySignedInCaller(
+      req,
+      supabaseUrl,
+      supabaseAnonKey,
+      adminClient
+    );
+    if (callerErr || !user || !user.email) return callerErr!;
+
     const contentType = req.headers.get("content-type") ?? "";
 
     // ----------------------------------------------------------------------
@@ -196,8 +297,66 @@ Deno.serve(async (req: Request) => {
         return jsonError("Unsupported multipart action", 400);
       }
 
+      // Honeypot check against automated bots
+      const honeypot = cleanText(form.get("companyWebsite"), 120);
+      if (honeypot) {
+        return jsonError("Submission rejected by anti-spam filter.", 400);
+      }
+
+      const eligibility = await getSubmitterEligibility(
+        adminClient,
+        user.id,
+        user.email,
+        Boolean(admin)
+      );
+
+      if (eligibility.isBlocked) {
+        return jsonError("This account is blocked from submitting reimbursements. Contact a Parish Trustee.", 403);
+      }
+
+      // Verify gate rules before accepting file bytes
+      if (!eligibility.canSubmit) {
+        if (eligibility.gateMode === "allowlist_only") {
+          return jsonError(
+            "Only Trustee-approved ministry leads & parishioners can upload receipts. Ask a Trustee to approve your email.",
+            403
+          );
+        }
+        if (eligibility.gateMode === "pin_and_login") {
+          const submittedPin = cleanText(form.get("parishPin"), 64);
+          if (!eligibility.hasPinConfigured) {
+            return jsonError(
+              "A Parish Submission PIN has not been set by Trustees yet. Ask a Trustee to set one or approve your email.",
+              403
+            );
+          }
+          if (!submittedPin) {
+            return jsonError("Enter the Parish Submission PIN to unlock receipt uploads.", 403);
+          }
+          const candidatePinHash = await hashParishPin(submittedPin);
+          if (candidatePinHash !== eligibility.pinHash) {
+            return jsonError("Incorrect Parish Submission PIN.", 403);
+          }
+          // Cache PIN verification for this user until Trustees rotate the PIN
+          await adminClient.from("reimbursement_submitters").upsert({
+            email: user.email.trim().toLowerCase(),
+            user_id: user.id,
+            full_name: cleanText(form.get("fullName"), 120) || null,
+            pin_verified_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
+      }
+
+      if (eligibility.remainingToday <= 0) {
+        return jsonError(
+          `Daily limit reached (${eligibility.maxPer24h} submissions per 24 hours) to prevent spam. Try again tomorrow.`,
+          429
+        );
+      }
+
       const fullName = cleanText(form.get("fullName"), 120);
-      const contactInfo = cleanText(form.get("contactInfo"), 160);
+      const contactInfo = cleanText(form.get("contactInfo"), 160) || user.email;
       const ministry = cleanText(form.get("ministry"), 100);
       const expenseDate = cleanText(form.get("expenseDate"), 20);
       const amountCents = Number(form.get("amountCents"));
@@ -217,11 +376,6 @@ Deno.serve(async (req: Request) => {
       if (!ALLOWED_PAYOUT_METHODS.has(payoutMethod)) {
         return jsonError("Invalid payout method", 400);
       }
-
-      let receiptPath: string | null = null;
-      let receiptMimeType: string | null = null;
-      let receiptFileName: string | null = null;
-
       if (!(receipt instanceof File) || receipt.size === 0) {
         return jsonError("Receipt image (JPG/PNG/WEBP) or PDF attachment is required", 400);
       }
@@ -232,13 +386,19 @@ Deno.serve(async (req: Request) => {
         return jsonError("Unsupported receipt file type. Use JPG, PNG, WEBP, or PDF.", 400);
       }
 
+      const fileBytes = new Uint8Array(await receipt.arrayBuffer());
+      if (!verifyMagicBytes(fileBytes, receipt.type)) {
+        return jsonError(
+          "Uploaded file signature does not match an authentic JPG, PNG, WEBP, or PDF receipt.",
+          400
+        );
+      }
+
       const referenceCode = generateReferenceCode();
       const claimSecret = generateRandomHex(24);
       const claimSecretHash = await sha256Hex(claimSecret);
-
       const ext = getFileExtension(receipt.type, receipt.name);
       const objectPath = `${expenseDate.slice(0, 7)}/${referenceCode}-${crypto.randomUUID()}.${ext}`;
-      const fileBytes = new Uint8Array(await receipt.arrayBuffer());
 
       const { error: uploadErr } = await adminClient.storage
         .from("receipts")
@@ -252,15 +412,13 @@ Deno.serve(async (req: Request) => {
         return jsonError(`Receipt upload failed: ${uploadErr.message}`, 500);
       }
 
-      receiptPath = objectPath;
-      receiptMimeType = receipt.type;
-      receiptFileName = cleanText(receipt.name, 140) || `receipt.${ext}`;
-
       const { data: inserted, error: insertErr } = await adminClient
         .from("reimbursements")
         .insert({
           reference_code: referenceCode,
           claim_secret_hash: claimSecretHash,
+          submitter_user_id: user.id,
+          submitter_email: user.email.trim().toLowerCase(),
           full_name: fullName,
           contact_info: contactInfo,
           ministry,
@@ -268,100 +426,101 @@ Deno.serve(async (req: Request) => {
           amount_cents: amountCents,
           description,
           payout_method: payoutMethod,
-          receipt_path: receiptPath,
-          receipt_mime_type: receiptMimeType,
-          receipt_file_name: receiptFileName,
+          receipt_path: objectPath,
+          receipt_mime_type: receipt.type,
+          receipt_file_name: cleanText(receipt.name, 140) || `receipt.${ext}`,
           status: "pending_review",
         })
         .select("*")
         .single();
 
       if (insertErr || !inserted) {
-        await adminClient.storage.from("receipts").remove([receiptPath]);
+        await adminClient.storage.from("receipts").remove([objectPath]);
         return jsonError(insertErr?.message ?? "Failed to save reimbursement request", 500);
       }
 
       const safeClaim = await sanitizeClaimRow(adminClient, inserted, true);
-      return jsonOk({ claim: safeClaim, claimSecret }, 201);
+      return jsonOk({ claim: safeClaim }, 201);
     }
 
     // ----------------------------------------------------------------------
-    // JSON ACTIONS: track | admin_list | admin_review
+    // JSON ACTIONS
     // ----------------------------------------------------------------------
     const body = (await req.json()) as Record<string, unknown>;
     const action = String(body.action ?? "");
 
-    if (action === "track") {
-      const results: Array<Record<string, unknown>> = [];
-      const seenCodes = new Set<string>();
-
-      // 1. Device-saved claims with secret token verification
-      const savedClaims = Array.isArray(body.claims) ? body.claims.slice(0, 20) : [];
-      if (savedClaims.length > 0) {
-        const codes = savedClaims
-          .map((c) => cleanText((c as Record<string, unknown>).referenceCode, 30).toUpperCase())
-          .filter(Boolean);
-
-        if (codes.length > 0) {
-          const { data: rows } = await adminClient
-            .from("reimbursements")
-            .select("*")
-            .in("reference_code", codes)
-            .order("created_at", { ascending: false });
-
-          for (const item of savedClaims) {
-            const ref = cleanText((item as Record<string, unknown>).referenceCode, 30).toUpperCase();
-            const secret = cleanText((item as Record<string, unknown>).claimSecret, 128);
-            if (!ref || !secret || seenCodes.has(ref)) continue;
-
-            const row = (rows ?? []).find((r) => r.reference_code === ref);
-            if (!row) continue;
-
-            const candidateHash = await sha256Hex(secret);
-            if (candidateHash === row.claim_secret_hash) {
-              seenCodes.add(ref);
-              results.push(await sanitizeClaimRow(adminClient, row, false));
-            }
-          }
-        }
-      }
-
-      // 2. Manual cross-device lookup via (Reference Code + Contact Phone/Email)
-      const lookup = body.lookup as { referenceCode?: string; contactInfo?: string } | undefined;
-      if (lookup?.referenceCode && lookup?.contactInfo) {
-        const ref = cleanText(lookup.referenceCode, 30).toUpperCase();
-        const contactNorm = normalizeContact(cleanText(lookup.contactInfo, 160));
-        if (ref && contactNorm.length >= 5 && !seenCodes.has(ref)) {
-          const { data: row } = await adminClient
-            .from("reimbursements")
-            .select("*")
-            .eq("reference_code", ref)
-            .maybeSingle();
-
-          if (!row) {
-            return jsonError("No matching reimbursement found for that reference code and contact.", 404);
-          }
-
-          if (normalizeContact(String(row.contact_info ?? "")) !== contactNorm) {
-            return jsonError("Reference code and contact phone/email did not match.", 403);
-          }
-
-          seenCodes.add(ref);
-          results.push(await sanitizeClaimRow(adminClient, row, false));
-        }
-      }
-
-      return jsonOk({ claims: results });
+    if (action === "my_access_status") {
+      const eligibility = await getSubmitterEligibility(
+        adminClient,
+        user.id,
+        user.email,
+        Boolean(admin)
+      );
+      return jsonOk({
+        email: user.email,
+        isAdmin: Boolean(admin),
+        gateMode: eligibility.gateMode,
+        hasPinConfigured: eligibility.hasPinConfigured,
+        canSubmit: eligibility.canSubmit,
+        isBlocked: eligibility.isBlocked,
+        isApproved: eligibility.isApproved,
+        pinVerified: eligibility.pinVerified,
+        maxPer24h: eligibility.maxPer24h,
+        remainingToday: eligibility.remainingToday,
+      });
     }
 
-    // Trustee / Super Admin verification required for remaining actions
-    const { error: authResp, admin } = await verifyTrusteeAdmin(
-      req,
-      supabaseUrl,
-      supabaseAnonKey,
-      adminClient
-    );
-    if (authResp || !admin) return authResp!;
+    if (action === "verify_pin") {
+      const submittedPin = cleanText(body.parishPin, 64);
+      const eligibility = await getSubmitterEligibility(
+        adminClient,
+        user.id,
+        user.email,
+        Boolean(admin)
+      );
+      if (eligibility.isBlocked) {
+        return jsonError("This account is blocked from submitting reimbursements.", 403);
+      }
+      if (!eligibility.hasPinConfigured) {
+        return jsonError("Trustees have not configured a Parish Submission PIN yet.", 400);
+      }
+      const candidateHash = await hashParishPin(submittedPin);
+      if (candidateHash !== eligibility.pinHash) {
+        return jsonError("Incorrect Parish Submission PIN.", 403);
+      }
+      await adminClient.from("reimbursement_submitters").upsert({
+        email: user.email.trim().toLowerCase(),
+        user_id: user.id,
+        pin_verified_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      return jsonOk({ verified: true });
+    }
+
+    if (action === "track") {
+      const { data: rows, error: trackErr } = await adminClient
+        .from("reimbursements")
+        .select("*")
+        .eq("submitter_user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (trackErr) {
+        return jsonError(trackErr.message, 500);
+      }
+      const claims = await Promise.all(
+        (rows ?? []).map((row) => sanitizeClaimRow(adminClient, row, true))
+      );
+      return jsonOk({ claims });
+    }
+
+    // Trustee / Super Admin verification required for management & queue actions
+    if (!admin || !isTrusteeOrVicar(admin.role)) {
+      return jsonError(
+        "Forbidden: Only verified Trustees and Super Admin (Vicar) can manage reimbursements",
+        403
+      );
+    }
 
     if (action === "admin_list") {
       const statusFilter = cleanText(body.status ?? "all", 30);
@@ -454,6 +613,128 @@ Deno.serve(async (req: Request) => {
 
       const safeClaim = await sanitizeClaimRow(adminClient, updated, true);
       return jsonOk({ claim: safeClaim });
+    }
+
+    if (action === "admin_get_security") {
+      const [{ data: cfg }, { data: submitters }] = await Promise.all([
+        adminClient.from("reimbursement_security_config").select("*").eq("id", 1).maybeSingle(),
+        adminClient
+          .from("reimbursement_submitters")
+          .select("email, full_name, ministry, is_approved, is_blocked, pin_verified_at, updated_at")
+          .order("updated_at", { ascending: false })
+          .limit(100),
+      ]);
+
+      return jsonOk({
+        config: {
+          gateMode: cfg?.gate_mode ?? "pin_and_login",
+          hasPinConfigured: Boolean(cfg?.pin_hash),
+          maxSubmissionsPer24h: Number(cfg?.max_submissions_per_24h ?? 3),
+          updatedAt: cfg?.updated_at ?? null,
+        },
+        submitters: submitters ?? [],
+      });
+    }
+
+    if (action === "admin_update_security") {
+      const gateMode = cleanText(body.gateMode, 40);
+      const maxPer24h = Number(body.maxSubmissionsPer24h ?? 3);
+      const newPin = cleanText(body.newPin, 64);
+
+      if (!ALLOWED_GATE_MODES.has(gateMode)) {
+        return jsonError("Invalid gateMode", 400);
+      }
+      if (!Number.isInteger(maxPer24h) || maxPer24h < 1 || maxPer24h > 25) {
+        return jsonError("Daily limit must be between 1 and 25 submissions.", 400);
+      }
+
+      const patch: Record<string, unknown> = {
+        id: 1,
+        gate_mode: gateMode,
+        max_submissions_per_24h: maxPer24h,
+        updated_by: admin.user_id,
+        updated_at: new Date().toISOString(),
+      };
+      if (newPin.length > 0) {
+        if (newPin.length < 4) {
+          return jsonError("Parish Submission PIN must be at least 4 characters.", 400);
+        }
+        patch.pin_hash = await hashParishPin(newPin);
+      }
+
+      const { error: cfgErr } = await adminClient
+        .from("reimbursement_security_config")
+        .upsert(patch);
+      if (cfgErr) return jsonError(cfgErr.message, 500);
+
+      await adminClient.from("audit_logs").insert({
+        actor_user_id: admin.user_id,
+        actor_email: admin.email,
+        actor_role: admin.role,
+        action: "UPDATE",
+        table_name: "reimbursement_security_config",
+        record_id: "1",
+        change_summary: `Updated reimbursement anti-spam gate: mode=${gateMode}, maxPer24h=${maxPer24h}${
+          newPin ? " (rotated Parish PIN)" : ""
+        }`,
+      });
+
+      return jsonOk({ ok: true });
+    }
+
+    if (action === "admin_upsert_submitter") {
+      const email = cleanText(body.email, 160).toLowerCase();
+      const fullName = cleanText(body.fullName, 120) || null;
+      const ministry = cleanText(body.ministry, 100) || null;
+      const isApproved = Boolean(body.isApproved);
+      const isBlocked = Boolean(body.isBlocked);
+
+      if (!email || !email.includes("@")) {
+        return jsonError("Valid email address is required", 400);
+      }
+
+      const { data: upserted, error: subErr } = await adminClient
+        .from("reimbursement_submitters")
+        .upsert({
+          email,
+          full_name: fullName,
+          ministry,
+          is_approved: isApproved,
+          is_blocked: isBlocked,
+          approved_by: admin.user_id,
+          updated_at: new Date().toISOString(),
+        })
+        .select("email, full_name, ministry, is_approved, is_blocked, pin_verified_at, updated_at")
+        .single();
+
+      if (subErr || !upserted) {
+        return jsonError(subErr?.message ?? "Failed to update submitter access", 500);
+      }
+
+      await adminClient.from("audit_logs").insert({
+        actor_user_id: admin.user_id,
+        actor_email: admin.email,
+        actor_role: admin.role,
+        action: "UPDATE",
+        table_name: "reimbursement_submitters",
+        record_id: email,
+        change_summary: `Updated submitter ${email}: approved=${isApproved}, blocked=${isBlocked}`,
+      });
+
+      return jsonOk({ submitter: upserted });
+    }
+
+    if (action === "admin_delete_submitter") {
+      const email = cleanText(body.email, 160).toLowerCase();
+      if (!email) return jsonError("Email required", 400);
+
+      const { error: delErr } = await adminClient
+        .from("reimbursement_submitters")
+        .delete()
+        .eq("email", email);
+      if (delErr) return jsonError(delErr.message, 500);
+
+      return jsonOk({ ok: true });
     }
 
     return jsonError(`Unsupported action: ${action}`, 400);

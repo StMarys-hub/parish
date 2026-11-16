@@ -41,6 +41,7 @@ type AppTab = 'bulletin' | 'schedules' | 'about' | 'reimbursements' | 'admin';
 export function App() {
   const [activeTab, setActiveTab] = useState<AppTab>(() => {
     if (initialAuthCallbackState.openAdmin) return 'admin';
+    if (initialAuthCallbackState.openReimbursements) return 'reimbursements';
     if (typeof window !== 'undefined' && window.location.hash.startsWith('#/reimbursements')) {
       return 'reimbursements';
     }
@@ -143,7 +144,7 @@ export function App() {
     if (tab !== 'admin') {
       setPasswordRecoveryPending(false);
     }
-    if (window.location.search.includes('auth=admin')) {
+    if (window.location.search.includes('auth=')) {
       const nextParams = new URLSearchParams(window.location.search);
       nextParams.delete('auth');
       const nextSearch = nextParams.toString();

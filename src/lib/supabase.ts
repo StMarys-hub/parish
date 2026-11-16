@@ -2,13 +2,14 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 export interface InitialAuthCallbackState {
   openAdmin: boolean;
+  openReimbursements: boolean;
   isRecovery: boolean;
   errorDescription: string | null;
 }
 
 function captureAndNormalizeAuthRedirect(): InitialAuthCallbackState {
   if (typeof window === 'undefined') {
-    return { openAdmin: false, isRecovery: false, errorDescription: null };
+    return { openAdmin: false, openReimbursements: false, isRecovery: false, errorDescription: null };
   }
 
   let hash = window.location.hash || '';
@@ -41,14 +42,18 @@ function captureAndNormalizeAuthRedirect(): InitialAuthCallbackState {
     searchParams.get('error');
 
   const isRecovery = typeParam === 'recovery' && (hasTokenOrCode || !rawError);
+  const openReimbursements =
+    hash.startsWith('#/reimbursements') || searchParams.get('auth') === 'reimbursements';
   const openAdmin =
-    hash.startsWith('#/admin') ||
-    searchParams.get('auth') === 'admin' ||
-    hasTokenOrCode ||
-    Boolean(rawError);
+    !openReimbursements &&
+    (hash.startsWith('#/admin') ||
+      searchParams.get('auth') === 'admin' ||
+      hasTokenOrCode ||
+      Boolean(rawError));
 
   return {
     openAdmin,
+    openReimbursements,
     isRecovery,
     errorDescription: rawError ? rawError.replace(/\+/g, ' ') : null,
   };

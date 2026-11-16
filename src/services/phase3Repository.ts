@@ -4,20 +4,17 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import {
   MinistryUpdate,
   PayoutMethod,
+  ReimbursementAccessStatus,
   ReimbursementClaim,
+  ReimbursementGateMode,
+  ReimbursementSecurityConfig,
   ReimbursementStatus,
+  ReimbursementSubmitter,
   SpecialAnnouncement,
 } from '../types/parish';
 
 const SPECIAL_CACHE_KEY = 'parish_cache_special_announcements_v1';
 const MINISTRY_CACHE_KEY = 'parish_cache_ministry_updates_v1';
-const SAVED_CLAIMS_KEY = 'parish_saved_reimbursement_tokens_v1';
-
-interface SavedClaimToken {
-  referenceCode: string;
-  claimSecret: string;
-  createdAt: string;
-}
 
 function readCache<T>(key: string, fallback: T): T {
   try {
@@ -251,15 +248,39 @@ export async function deleteMinistryUpdate(id: string): Promise<void> {
 }
 
 // ============================================================================
-// 3. EXPENSE REIMBURSEMENTS (PRIVATE BUCKET + TRUSTEE APPROVAL QUEUE)
+// 3. EXPENSE REIMBURSEMENTS (AUTHENTICATED DEVICE LOGIN + ANTI-SPAM + PRIVATE RECEIPTS)
 // ============================================================================
-export function getSavedClaimTokens(): SavedClaimToken[] {
-  return readCache<SavedClaimToken[]>(SAVED_CLAIMS_KEY, []);
+async function invokeReimbursementsJson<T>(body: Record<string, unknown>): Promise<T> {
+  const auth = await readAuthHeader();
+  if (!auth) throw new Error('Device login required.');
+
+  const { url, anonKey } = getEdgeFunctionEndpoint('reimbursements');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: anonKey,
+      Authorization: auth,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const payload = (await res.json()) as T & { error?: string };
+  if (!res.ok) {
+    throw new Error(payload.error || 'Reimbursement request failed.');
+  }
+  return payload;
 }
 
-function saveClaimTokenLocally(token: SavedClaimToken): void {
-  const existing = getSavedClaimTokens().filter((t) => t.referenceCode !== token.referenceCode);
-  writeCache(SAVED_CLAIMS_KEY, [token, ...existing].slice(0, 20));
+export async function fetchReimbursementAccessStatus(): Promise<ReimbursementAccessStatus> {
+  return invokeReimbursementsJson<ReimbursementAccessStatus>({ action: 'my_access_status' });
+}
+
+export async function verifyReimbursementParishPin(parishPin: string): Promise<void> {
+  await invokeReimbursementsJson<{ verified: boolean }>({
+    action: 'verify_pin',
+    parishPin,
+  });
 }
 
 export async function submitReimbursementRequest(input: {
@@ -271,12 +292,18 @@ export async function submitReimbursementRequest(input: {
   description: string;
   payoutMethod: PayoutMethod;
   receiptFile: File;
+  parishPin?: string;
+  companyWebsite?: string;
 }): Promise<{
   claim: ReimbursementClaim;
   compressionNote: string | null;
 }> {
   if (!isSupabaseConfigured) {
     throw new Error('Connect Supabase first to submit reimbursement receipts.');
+  }
+  const auth = await readAuthHeader();
+  if (!auth) {
+    throw new Error('Please sign in on this device before submitting a receipt.');
   }
 
   const parsedDollars = Number(input.amountDollars.replace(/[^0-9.]/g, ''));
@@ -299,6 +326,8 @@ export async function submitReimbursementRequest(input: {
   form.append('amountCents', String(amountCents));
   form.append('description', sanitizePlainText(input.description));
   form.append('payoutMethod', input.payoutMethod);
+  if (input.parishPin) form.append('parishPin', input.parishPin.trim());
+  if (input.companyWebsite) form.append('companyWebsite', input.companyWebsite);
   form.append('receipt', prepared.file);
 
   const { url, anonKey } = getEdgeFunctionEndpoint('reimbursements');
@@ -306,83 +335,40 @@ export async function submitReimbursementRequest(input: {
     method: 'POST',
     headers: {
       apikey: anonKey,
-      Authorization: `Bearer ${anonKey}`,
+      Authorization: auth,
     },
     body: form,
   });
 
   const payload = (await res.json()) as {
     claim?: ReimbursementClaim;
-    claimSecret?: string;
     error?: string;
   };
   if (!res.ok || !payload.claim) {
     throw new Error(payload.error || 'Failed to submit reimbursement request.');
   }
 
-  if (payload.claimSecret) {
-    saveClaimTokenLocally({
-      referenceCode: payload.claim.reference_code,
-      claimSecret: payload.claimSecret,
-      createdAt: payload.claim.created_at,
-    });
-  }
-
   return { claim: payload.claim, compressionNote };
 }
 
-export async function fetchTrackedReimbursements(lookup?: {
-  referenceCode: string;
-  contactInfo: string;
-}): Promise<ReimbursementClaim[]> {
+export async function fetchTrackedReimbursements(): Promise<ReimbursementClaim[]> {
   if (!isSupabaseConfigured) return [];
-  const saved = getSavedClaimTokens();
-  if (saved.length === 0 && !lookup) return [];
-
-  const { url, anonKey } = getEdgeFunctionEndpoint('reimbursements');
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: anonKey,
-      Authorization: `Bearer ${anonKey}`,
-    },
-    body: JSON.stringify({
-      action: 'track',
-      claims: saved.map((s) => ({ referenceCode: s.referenceCode, claimSecret: s.claimSecret })),
-      ...(lookup ? { lookup } : {}),
-    }),
+  const auth = await readAuthHeader();
+  if (!auth) return [];
+  const data = await invokeReimbursementsJson<{ claims?: ReimbursementClaim[] }>({
+    action: 'track',
   });
-
-  const payload = (await res.json()) as { claims?: ReimbursementClaim[]; error?: string };
-  if (!res.ok) {
-    throw new Error(payload.error || 'Unable to look up reimbursement status.');
-  }
-  return payload.claims ?? [];
+  return data.claims ?? [];
 }
 
 export async function fetchAdminReimbursements(
   status: ReimbursementStatus | 'all' = 'all'
 ): Promise<ReimbursementClaim[]> {
-  const auth = await readAuthHeader();
-  if (!auth) throw new Error('Admin sign-in required.');
-
-  const { url, anonKey } = getEdgeFunctionEndpoint('reimbursements');
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: anonKey,
-      Authorization: auth,
-    },
-    body: JSON.stringify({ action: 'admin_list', status }),
+  const data = await invokeReimbursementsJson<{ claims?: ReimbursementClaim[] }>({
+    action: 'admin_list',
+    status,
   });
-
-  const payload = (await res.json()) as { claims?: ReimbursementClaim[]; error?: string };
-  if (!res.ok) {
-    throw new Error(payload.error || 'Unable to load reimbursement queue.');
-  }
-  return payload.claims ?? [];
+  return data.claims ?? [];
 }
 
 export async function reviewAdminReimbursement(params: {
@@ -390,23 +376,52 @@ export async function reviewAdminReimbursement(params: {
   status: 'approved' | 'paid' | 'declined';
   trusteeNotes?: string;
 }): Promise<ReimbursementClaim> {
-  const auth = await readAuthHeader();
-  if (!auth) throw new Error('Admin sign-in required.');
-
-  const { url, anonKey } = getEdgeFunctionEndpoint('reimbursements');
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: anonKey,
-      Authorization: auth,
-    },
-    body: JSON.stringify({ action: 'admin_review', ...params }),
+  const data = await invokeReimbursementsJson<{ claim?: ReimbursementClaim }>({
+    action: 'admin_review',
+    ...params,
   });
+  if (!data.claim) throw new Error('Unable to update reimbursement status.');
+  return data.claim;
+}
 
-  const payload = (await res.json()) as { claim?: ReimbursementClaim; error?: string };
-  if (!res.ok || !payload.claim) {
-    throw new Error(payload.error || 'Unable to update reimbursement status.');
-  }
-  return payload.claim;
+export async function fetchReimbursementSecurity(): Promise<{
+  config: ReimbursementSecurityConfig;
+  submitters: ReimbursementSubmitter[];
+}> {
+  return invokeReimbursementsJson<{
+    config: ReimbursementSecurityConfig;
+    submitters: ReimbursementSubmitter[];
+  }>({ action: 'admin_get_security' });
+}
+
+export async function updateReimbursementSecurity(params: {
+  gateMode: ReimbursementGateMode;
+  maxSubmissionsPer24h: number;
+  newPin?: string;
+}): Promise<void> {
+  await invokeReimbursementsJson<{ ok: boolean }>({
+    action: 'admin_update_security',
+    ...params,
+  });
+}
+
+export async function upsertReimbursementSubmitter(params: {
+  email: string;
+  fullName?: string;
+  ministry?: string;
+  isApproved: boolean;
+  isBlocked: boolean;
+}): Promise<ReimbursementSubmitter> {
+  const data = await invokeReimbursementsJson<{ submitter: ReimbursementSubmitter }>({
+    action: 'admin_upsert_submitter',
+    ...params,
+  });
+  return data.submitter;
+}
+
+export async function deleteReimbursementSubmitter(email: string): Promise<void> {
+  await invokeReimbursementsJson<{ ok: boolean }>({
+    action: 'admin_delete_submitter',
+    email,
+  });
 }
