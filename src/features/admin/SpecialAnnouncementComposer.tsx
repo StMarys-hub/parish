@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Archive,
   CheckCircle2,
+  ListChecks,
   Megaphone,
   RotateCcw,
-  Sparkles,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -205,7 +205,7 @@ export function SpecialAnnouncementComposer({
             onClick={handleFormatPreview}
             className="inline-flex items-center gap-1.5 rounded-xl bg-parish-navy px-3.5 py-2 text-xs font-semibold text-white hover:bg-parish-navy-dark disabled:opacity-40"
           >
-            <Sparkles className="h-3.5 w-3.5" />
+            <ListChecks className="h-3.5 w-3.5" />
             Format &amp; Preview
           </button>
         </div>

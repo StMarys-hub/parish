@@ -6,7 +6,6 @@ import {
   Church,
   Clock,
   MapPin,
-  Sparkles,
 } from 'lucide-react';
 import {
   inferDefaultScheduleGroupKey,
@@ -223,7 +222,7 @@ export function SchedulesView({ regularSchedules, activeBulletin }: SchedulesVie
             </div>
             {feastDays.length > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-[11px] font-semibold text-parish-gold-ink">
-                <Sparkles className="h-3 w-3" />
+                <Church className="h-3 w-3" />
                 {feastDays.length} {feastDays.length === 1 ? 'Feast Day' : 'Feast Days'}
               </span>
             )}

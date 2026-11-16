@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle2, Palette, ShieldAlert, Sparkles } from 'lucide-react';
+import { CalendarRange, CheckCircle2, Palette, ShieldAlert } from 'lucide-react';
 import { PARISH_THEMES } from '../../config/themes';
 import { resolveActiveTheme } from '../../lib/themeEngine';
 import { updateThemeMode } from '../../services/parishRepository';
@@ -109,7 +109,7 @@ export function AdminThemeControl({
       >
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-parish-gold-ink" />
+            <CalendarRange className="h-4 w-4 text-parish-gold-ink" />
             <span className="text-sm font-bold text-parish-ink">
               Auto (Current Syro-Malabar Liturgical Season) — Recommended
             </span>

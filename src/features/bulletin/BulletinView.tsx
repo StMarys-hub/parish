@@ -11,7 +11,6 @@ import {
   FolderOpen,
   Image as ImageIcon,
   MapPin,
-  Sparkles,
 } from 'lucide-react';
 import { CollapsibleAnnouncementCard } from '../../components/CollapsibleAnnouncementCard';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
@@ -226,7 +225,7 @@ export function BulletinView({
                 backgroundColor: 'var(--parish-hero-badge-bg)',
               }}
             >
-              <Sparkles className="h-3 w-3" />
+              <Calendar className="h-3 w-3" />
               {formatShortDate(activeBulletin.week_start)} – {formatShortDate(activeBulletin.week_end)}
             </span>
             {seasonLabel && (

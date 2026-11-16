@@ -9,7 +9,7 @@ import {
   Megaphone,
   Paperclip,
   ShieldCheck,
-  Sparkles,
+  Flame,
   Users,
 } from 'lucide-react';
 import { AttentionBadgesResult } from '../lib/announcementSignals';
@@ -67,7 +67,7 @@ function getAccentVisuals(categoryLabel: string, highlighted?: boolean) {
       barClass: 'bg-amber-600',
       iconWrapClass: 'bg-amber-50 text-amber-800',
       pillClass: 'border-amber-200 bg-amber-50 text-amber-800',
-      Icon: Sparkles,
+      Icon: Flame,
     };
   }
   if (lower.includes('ward') || lower.includes('community') || lower.includes('ministry') || lower.includes('forum') || lower.includes('joseph')) {
