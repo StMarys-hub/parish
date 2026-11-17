@@ -1,6 +1,7 @@
 import { prepareReceiptUploadFile } from '../lib/imageCompression';
 import { sanitizeActionUrl, sanitizePlainText, sanitizeStorageFileName } from '../lib/sanitize';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { parseVicarMessage } from '../lib/vicarMessageParser';
 import {
   MinistryUpdate,
   PayoutMethod,
@@ -11,6 +12,8 @@ import {
   ReimbursementStatus,
   ReimbursementSubmitter,
   SpecialAnnouncement,
+  SpecialNoticeCategory,
+  SpecialNoticeStructuredBlocks,
 } from '../types/parish';
 
 const SPECIAL_CACHE_KEY = 'parish_cache_special_announcements_v1';
@@ -73,22 +76,103 @@ async function readAuthHeader(): Promise<string | null> {
 }
 
 // ============================================================================
-// 1. STANDALONE VICAR / SPECIAL ANNOUNCEMENTS
+// 1. STANDALONE VICAR / SPECIAL NOTICES (special_notices + graceful fallback)
 // ============================================================================
+function isMissingSpecialNoticesTable(err: { message?: string; code?: string } | null): boolean {
+  if (!err) return false;
+  const msg = `${err.code ?? ''} ${err.message ?? ''}`.toLowerCase();
+  return msg.includes('special_notices') && (msg.includes('does not exist') || msg.includes('pgrst205') || msg.includes('42p01'));
+}
+
+function mapNoticeRow(raw: Record<string, unknown>): SpecialAnnouncement {
+  const isNewSchema = 'structured_blocks' in raw || 'category_badge' in raw;
+  const rawMessage = String(raw.raw_message ?? raw.description ?? '');
+  const parsed = parseVicarMessage(rawMessage);
+
+  const structuredBlocks = (
+    isNewSchema && raw.structured_blocks && typeof raw.structured_blocks === 'object'
+      ? raw.structured_blocks
+      : parsed.structuredBlocks
+  ) as SpecialNoticeStructuredBlocks;
+
+  const firstLoc = structuredBlocks.locations?.[0];
+  const firstLink = structuredBlocks.externalLinks?.[0] ?? structuredBlocks.mediaLinks?.[0];
+  const title = String(raw.title ?? parsed.title ?? 'Special Notice');
+  const summaryPreview = String(raw.summary_preview ?? parsed.summaryPreview ?? '');
+
+  return {
+    id: String(raw.id),
+    title,
+    category_badge: (raw.category_badge as SpecialNoticeCategory) ?? parsed.categoryBadge,
+    summary_preview: summaryPreview,
+    raw_message: rawMessage,
+    structured_blocks: structuredBlocks,
+    sign_off: String(raw.sign_off ?? parsed.signOff ?? 'Rajeev Achan'),
+    description: String(raw.description ?? parsed.description ?? summaryPreview),
+    event_date_label:
+      (raw.event_date_label as string | null | undefined) ??
+      structuredBlocks.eventDateLabel ??
+      (parsed.eventDateLabel || null),
+    location_label:
+      (raw.location_label as string | null | undefined) ??
+      structuredBlocks.locationLabel ??
+      firstLoc?.label ??
+      (parsed.locationLabel || null),
+    maps_url:
+      (raw.maps_url as string | null | undefined) ??
+      firstLoc?.mapsUrl ??
+      (parsed.mapsUrl || null),
+    web_url:
+      (raw.web_url as string | null | undefined) ??
+      firstLink?.url ??
+      (parsed.webUrl || null),
+    web_link_label:
+      (raw.web_link_label as string | null | undefined) ??
+      firstLink?.label ??
+      (parsed.webLinkLabel || null),
+    flyer_url: (raw.flyer_url as string | null | undefined) ?? null,
+    flyer_storage_path: (raw.flyer_storage_path as string | null | undefined) ?? null,
+    flyer_mime_type: (raw.flyer_mime_type as string | null | undefined) ?? null,
+    is_pinned: Boolean(raw.is_pinned),
+    status: (raw.status as 'published' | 'archived') ?? 'published',
+    published_at: String(raw.published_at ?? raw.created_at ?? new Date().toISOString()),
+    created_at: String(raw.created_at ?? raw.published_at ?? new Date().toISOString()),
+    updated_at: String(raw.updated_at ?? raw.created_at ?? new Date().toISOString()),
+  };
+}
+
 export async function fetchPublishedSpecialAnnouncements(): Promise<SpecialAnnouncement[]> {
   if (!supabase || !isSupabaseConfigured) {
     return [];
   }
   try {
-    const { data, error } = await supabase
+    const primary = await supabase
+      .from('special_notices')
+      .select('*')
+      .eq('status', 'published')
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (!primary.error) {
+      const rows = (primary.data ?? []).map((r) => mapNoticeRow(r as Record<string, unknown>));
+      writeCache(SPECIAL_CACHE_KEY, rows);
+      return rows;
+    }
+
+    if (!isMissingSpecialNoticesTable(primary.error)) {
+      throw primary.error;
+    }
+
+    const legacy = await supabase
       .from('special_announcements')
       .select('*')
       .eq('status', 'published')
       .order('is_pinned', { ascending: false })
       .order('published_at', { ascending: false })
-      .limit(10);
-    if (error) throw error;
-    const rows = (data ?? []) as SpecialAnnouncement[];
+      .limit(15);
+    if (legacy.error) throw legacy.error;
+    const rows = (legacy.data ?? []).map((r) => mapNoticeRow(r as Record<string, unknown>));
     writeCache(SPECIAL_CACHE_KEY, rows);
     return rows;
   } catch {
@@ -98,13 +182,27 @@ export async function fetchPublishedSpecialAnnouncements(): Promise<SpecialAnnou
 
 export async function fetchAllSpecialAnnouncementsForAdmin(): Promise<SpecialAnnouncement[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase
-    .from('special_announcements')
+  const primary = await supabase
+    .from('special_notices')
     .select('*')
-    .order('published_at', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(50);
-  if (error) throw new Error(error.message);
-  return (data ?? []) as SpecialAnnouncement[];
+
+  if (!primary.error) {
+    return (primary.data ?? []).map((r) => mapNoticeRow(r as Record<string, unknown>));
+  }
+
+  if (isMissingSpecialNoticesTable(primary.error)) {
+    const legacy = await supabase
+      .from('special_announcements')
+      .select('*')
+      .order('published_at', { ascending: false })
+      .limit(50);
+    if (legacy.error) throw new Error(legacy.error.message);
+    return (legacy.data ?? []).map((r) => mapNoticeRow(r as Record<string, unknown>));
+  }
+
+  throw new Error(primary.error.message);
 }
 
 export async function upsertSpecialAnnouncement(
@@ -113,33 +211,66 @@ export async function upsertSpecialAnnouncement(
   if (!supabase) throw new Error('Supabase is not configured');
 
   const userId = await requireFreshUserId();
-  const row = {
+  const nowIso = new Date().toISOString();
+
+  const modernRow = {
     title: sanitizePlainText(payload.title),
+    category_badge: payload.category_badge ?? 'Vicar Note',
+    summary_preview: sanitizePlainText(payload.summary_preview ?? payload.description.slice(0, 140)),
+    raw_message: sanitizePlainText(payload.raw_message ?? payload.description),
+    structured_blocks: payload.structured_blocks ?? {},
+    flyer_url: payload.flyer_url ? sanitizeActionUrl(payload.flyer_url) : null,
+    flyer_storage_path: payload.flyer_storage_path ?? null,
+    flyer_mime_type: payload.flyer_mime_type ?? null,
+    sign_off: sanitizePlainText(payload.sign_off ?? 'Rajeev Achan') || 'Rajeev Achan',
+    is_pinned: payload.is_pinned ?? false,
+    status: payload.status ?? 'published',
+    published_at: payload.published_at ?? nowIso,
+    updated_by: userId,
+    updated_at: nowIso,
+  };
+
+  const primaryQuery = payload.id
+    ? supabase.from('special_notices').update(modernRow).eq('id', payload.id)
+    : supabase.from('special_notices').insert(modernRow);
+
+  const primaryRes = await primaryQuery.select().single();
+  if (!primaryRes.error && primaryRes.data) {
+    return mapNoticeRow(primaryRes.data as Record<string, unknown>);
+  }
+
+  if (!isMissingSpecialNoticesTable(primaryRes.error)) {
+    throw new Error(primaryRes.error?.message ?? 'Failed to save Special Notice');
+  }
+
+  // Fallback to legacy table only when migration 007 hasn't run yet
+  const legacyRow = {
+    title: modernRow.title,
     description: sanitizePlainText(payload.description),
     event_date_label: payload.event_date_label ? sanitizePlainText(payload.event_date_label) : null,
     location_label: payload.location_label ? sanitizePlainText(payload.location_label) : null,
     maps_url: payload.maps_url ? sanitizeActionUrl(payload.maps_url) : null,
     web_url: payload.web_url ? sanitizeActionUrl(payload.web_url) : null,
     web_link_label: payload.web_link_label ? sanitizePlainText(payload.web_link_label) : null,
-    flyer_url: payload.flyer_url ? sanitizeActionUrl(payload.flyer_url) : null,
-    flyer_storage_path: payload.flyer_storage_path ?? null,
-    flyer_mime_type: payload.flyer_mime_type ?? null,
-    is_pinned: payload.is_pinned ?? true,
-    status: payload.status ?? 'published',
-    published_at: payload.published_at ?? new Date().toISOString(),
+    flyer_url: modernRow.flyer_url,
+    flyer_storage_path: modernRow.flyer_storage_path,
+    flyer_mime_type: modernRow.flyer_mime_type,
+    is_pinned: modernRow.is_pinned,
+    status: modernRow.status,
+    published_at: modernRow.published_at,
     updated_by: userId,
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
   };
 
-  const query = payload.id
-    ? supabase.from('special_announcements').update(row).eq('id', payload.id)
-    : supabase.from('special_announcements').insert(row);
+  const legacyQuery = payload.id
+    ? supabase.from('special_announcements').update(legacyRow).eq('id', payload.id)
+    : supabase.from('special_announcements').insert(legacyRow);
 
-  const { data, error } = await query.select().single();
-  if (error || !data) {
-    throw new Error(error?.message ?? 'Failed to save Special Announcement');
+  const legacyRes = await legacyQuery.select().single();
+  if (legacyRes.error || !legacyRes.data) {
+    throw new Error(legacyRes.error?.message ?? 'Failed to save Special Notice');
   }
-  return data as SpecialAnnouncement;
+  return mapNoticeRow(legacyRes.data as Record<string, unknown>);
 }
 
 export async function setSpecialAnnouncementStatus(
@@ -148,29 +279,44 @@ export async function setSpecialAnnouncementStatus(
 ): Promise<void> {
   if (!supabase) throw new Error('Supabase is not configured');
   await requireFreshUserId();
-  const { error } = await supabase
+  const primary = await supabase
+    .from('special_notices')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (!primary.error) return;
+  if (!isMissingSpecialNoticesTable(primary.error)) {
+    throw new Error(primary.error.message);
+  }
+  const legacy = await supabase
     .from('special_announcements')
     .update({ status, updated_at: new Date().toISOString() })
     .eq('id', id);
-  if (error) throw new Error(error.message);
+  if (legacy.error) throw new Error(legacy.error.message);
 }
 
 export async function deleteSpecialAnnouncement(id: string): Promise<void> {
   if (!supabase) throw new Error('Supabase is not configured');
   await requireFreshUserId();
-  const { error } = await supabase.from('special_announcements').delete().eq('id', id);
-  if (error) throw new Error(error.message);
+  const primary = await supabase.from('special_notices').delete().eq('id', id);
+  if (!primary.error) return;
+  if (!isMissingSpecialNoticesTable(primary.error)) {
+    throw new Error(primary.error.message);
+  }
+  const legacy = await supabase.from('special_announcements').delete().eq('id', id);
+  if (legacy.error) throw new Error(legacy.error.message);
 }
 
 export async function uploadSpecialFlyer(
   file: File
-): Promise<{ publicUrl: string; storagePath: string; mimeType: string }> {
+): Promise<{ publicUrl: string; storagePath: string; mimeType: string; compressionNote: string | null }> {
   if (!supabase) throw new Error('Supabase is not configured');
   await requireFreshUserId();
-  const safeName = sanitizeStorageFileName(file.name);
+  const prepared = await prepareReceiptUploadFile(file);
+  const uploadFile = prepared.file;
+  const safeName = sanitizeStorageFileName(uploadFile.name);
   const path = `special/${Date.now()}-${safeName}`;
-  const { error } = await supabase.storage.from('flyers').upload(path, file, {
-    contentType: file.type,
+  const { error } = await supabase.storage.from('flyers').upload(path, uploadFile, {
+    contentType: uploadFile.type,
     upsert: false,
   });
   if (error) throw new Error(error.message);
@@ -178,7 +324,10 @@ export async function uploadSpecialFlyer(
   return {
     publicUrl: data.publicUrl,
     storagePath: path,
-    mimeType: file.type,
+    mimeType: uploadFile.type,
+    compressionNote: prepared.wasCompressed
+      ? `Compressed (${Math.round(prepared.originalBytes / 1024)} KB → ${Math.round(prepared.finalBytes / 1024)} KB)`
+      : null,
   };
 }
 

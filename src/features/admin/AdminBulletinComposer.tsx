@@ -4,8 +4,11 @@ import {
   ArrowUp,
   Bell,
   CheckCircle2,
+  Copy,
   Eye,
+  FileText,
   FileUp,
+  HelpCircle,
   Link as LinkIcon,
   Plus,
   Save,
@@ -14,6 +17,7 @@ import {
   Wand2,
 } from 'lucide-react';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
+import { HelpGuideModal } from '../../components/HelpGuideModal';
 import { BulletinView } from '../bulletin/BulletinView';
 import { parseRawBulletin } from '../../lib/bulletinParser';
 import { sanitizeActionUrl, sanitizePlainText } from '../../lib/sanitize';
@@ -103,6 +107,8 @@ export function AdminBulletinComposer({
   );
 
   // Publish & Push confirmation modal state
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [copiedHelp, setCopiedHelp] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [subscriberCount, setSubscriberCount] = useState<number>(0);
   const [sendPush, setSendPush] = useState(true);
@@ -394,7 +400,17 @@ export function AdminBulletinComposer({
           </button>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            aria-label="Weekly Bulletin Formatting Guide"
+            title="Weekly Bulletin Formatting Guide"
+            className="inline-flex items-center gap-1 rounded-lg border border-[#E7E2DA] bg-[#FAF8F5] px-2.5 py-1.5 text-xs font-semibold text-[#1E3A5F] hover:bg-slate-100"
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+            Help
+          </button>
           <button
             type="button"
             onClick={handleSaveDraft}
@@ -853,6 +869,73 @@ export function AdminBulletinComposer({
           </div>
         </div>
       )}
+
+      <HelpGuideModal
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        title="Weekly Bulletin Formatting Guide"
+        subtitle="Paste directly from Word, Email, or WhatsApp — cards & tags auto-format cleanly."
+      >
+        <div className="rounded-xl border border-[#E7E2DA] bg-[#FAF8F5] p-3.5 text-xs leading-relaxed text-[#526071]">
+          <p className="font-bold text-[#1E293B]">Recommended Weekly Format:</p>
+          <ul className="mt-2 list-disc space-y-1.5 pl-4">
+            <li>
+              <strong>Header Line:</strong> Start with <code className="rounded bg-white px-1 py-0.5 text-[#1E3A5F]">Weekly Schedule (MM/DD/YYYY - MM/DD/YYYY)</code> so dates auto-fill.
+            </li>
+            <li>
+              <strong>Announcements Section:</strong> Start bullet lines with <code className="rounded bg-white px-1 py-0.5 text-[#1E3A5F]">• Title: Details...</code> to auto-split into collapsible cards.
+            </li>
+            <li>
+              <strong>Auto-Category Tagging:</strong> Mentioning keywords like <code className="rounded bg-white px-1 py-0.5">CML</code>, <code className="rounded bg-white px-1 py-0.5">CCD</code>, <code className="rounded bg-white px-1 py-0.5">Youth</code>, <code className="rounded bg-white px-1 py-0.5">Ward</code>, or <code className="rounded bg-white px-1 py-0.5">Choir</code> sets the category badge automatically.
+            </li>
+            <li>
+              <strong>Sunday Collection & Links:</strong> Include <code className="rounded bg-white px-1 py-0.5">Sunday Collection: $462</code> to update the offering box, and any <code className="rounded bg-white px-1 py-0.5">https://...</code> URL becomes a safe tap button.
+            </li>
+          </ul>
+        </div>
+
+        <div className="rounded-xl border border-[#E7E2DA] bg-slate-50 p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1E293B]">
+              <FileText className="h-3.5 w-3.5 text-[#1E3A5F]" />
+              Copyable Weekly Bulletin Sample
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                void navigator.clipboard?.writeText(SAMPLE_PASTE_SNIPPET);
+                setCopiedHelp(true);
+                window.setTimeout(() => setCopiedHelp(false), 1800);
+              }}
+              className="inline-flex items-center gap-1 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#1E3A5F] hover:bg-slate-100"
+            >
+              <Copy className="h-3 w-3" />
+              {copiedHelp ? 'Copied!' : 'Copy Format'}
+            </button>
+          </div>
+          <pre className="max-h-44 overflow-y-auto whitespace-pre-wrap rounded-lg border border-[#E7E2DA] bg-white p-2.5 font-mono text-[11px] text-[#334155]">
+            {SAMPLE_PASTE_SNIPPET}
+          </pre>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-indigo-200 bg-indigo-50/70 p-3">
+          <p className="text-xs text-indigo-950">
+            Want to test formatting right away? Insert the sample text into Smart Paste.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setMode('paste');
+              setRawPaste(SAMPLE_PASTE_SNIPPET);
+              setHelpOpen(false);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#1E3A5F] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#152943]"
+          >
+            <Wand2 className="h-3.5 w-3.5" />
+            Insert Sample Weekly Template
+          </button>
+        </div>
+      </HelpGuideModal>
     </div>
   );
 }

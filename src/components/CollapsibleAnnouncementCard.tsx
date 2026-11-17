@@ -1,10 +1,12 @@
 import { ReactNode, useEffect, useState } from 'react';
 import {
+  AlertTriangle,
   BookOpen,
   Calendar,
   Check,
   ChevronDown,
   Church,
+  Film,
   Flame,
   HeartHandshake,
   Link2,
@@ -43,6 +45,38 @@ interface CollapsibleAnnouncementCardProps {
 
 function getAccentVisuals(categoryLabel: string, highlighted?: boolean) {
   const lower = categoryLabel.toLowerCase();
+  if (lower.includes('urgent')) {
+    return {
+      barClass: 'bg-rose-600',
+      iconWrapClass: 'bg-rose-50 text-rose-700',
+      pillClass: 'border-rose-200 bg-rose-50 text-rose-700',
+      Icon: AlertTriangle,
+    };
+  }
+  if (lower.includes('media') || lower.includes('highlight')) {
+    return {
+      barClass: 'bg-sky-600',
+      iconWrapClass: 'bg-sky-50 text-sky-700',
+      pillClass: 'border-sky-200 bg-sky-50 text-sky-700',
+      Icon: Film,
+    };
+  }
+  if (lower.includes('liturg') || lower.includes('sunday')) {
+    return {
+      barClass: 'bg-parish-navy',
+      iconWrapClass: 'bg-parish-navy/10 text-parish-navy',
+      pillClass: 'border-parish-navy/20 bg-parish-navy/8 text-parish-navy',
+      Icon: Church,
+    };
+  }
+  if (lower.includes('youth') || lower.includes('cml') || lower.includes('event')) {
+    return {
+      barClass: 'bg-amber-600',
+      iconWrapClass: 'bg-amber-50 text-amber-800',
+      pillClass: 'border-amber-200 bg-amber-50 text-amber-800',
+      Icon: Flame,
+    };
+  }
   if (highlighted || lower.includes('special') || lower.includes('vicar')) {
     return {
       barClass: 'bg-parish-gold',
@@ -51,28 +85,12 @@ function getAccentVisuals(categoryLabel: string, highlighted?: boolean) {
       Icon: Megaphone,
     };
   }
-  if (lower.includes('liturg')) {
-    return {
-      barClass: 'bg-parish-navy',
-      iconWrapClass: 'bg-parish-navy/10 text-parish-navy',
-      pillClass: 'border-parish-navy/20 bg-parish-navy/8 text-parish-navy',
-      Icon: Church,
-    };
-  }
   if (lower.includes('catechism') || lower.includes('ccd')) {
     return {
       barClass: 'bg-indigo-600',
       iconWrapClass: 'bg-indigo-50 text-indigo-700',
       pillClass: 'border-indigo-200 bg-indigo-50 text-indigo-700',
       Icon: BookOpen,
-    };
-  }
-  if (lower.includes('youth') || lower.includes('cml')) {
-    return {
-      barClass: 'bg-amber-600',
-      iconWrapClass: 'bg-amber-50 text-amber-800',
-      pillClass: 'border-amber-200 bg-amber-50 text-amber-800',
-      Icon: Flame,
     };
   }
   if (

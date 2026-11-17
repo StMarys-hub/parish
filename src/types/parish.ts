@@ -234,9 +234,48 @@ export interface ReimbursementClaim {
   updated_at: string;
 }
 
+export type SpecialNoticeCategory =
+  | 'Vicar Note'
+  | 'Sunday Liturgy'
+  | 'Media & Highlights'
+  | 'Youth & Events'
+  | 'Urgent';
+
+export interface NoticeTimelineItem {
+  time: string;
+  activity: string;
+  note?: string | null;
+}
+
+export interface NoticeLinkItem {
+  label: string;
+  url: string;
+  kind?: 'drive' | 'video' | 'form' | 'web';
+}
+
+export interface NoticeLocationItem {
+  label: string;
+  mapsUrl?: string | null;
+}
+
+export interface SpecialNoticeStructuredBlocks {
+  paragraphs?: string[];
+  timeline?: NoticeTimelineItem[];
+  mediaLinks?: NoticeLinkItem[];
+  externalLinks?: NoticeLinkItem[];
+  locations?: NoticeLocationItem[];
+  eventDateLabel?: string | null;
+  locationLabel?: string | null;
+}
+
 export interface SpecialAnnouncement {
   id: string;
   title: string;
+  category_badge?: SpecialNoticeCategory;
+  summary_preview?: string;
+  raw_message?: string;
+  structured_blocks?: SpecialNoticeStructuredBlocks;
+  sign_off?: string;
   description: string;
   event_date_label?: string | null;
   location_label?: string | null;
@@ -249,8 +288,11 @@ export interface SpecialAnnouncement {
   is_pinned: boolean;
   status: 'published' | 'archived';
   published_at: string;
+  created_at?: string;
   updated_at: string;
 }
+
+export type SpecialNotice = SpecialAnnouncement;
 
 export interface MinistryUpdate {
   id: string;
