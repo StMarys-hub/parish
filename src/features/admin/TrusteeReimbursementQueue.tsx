@@ -18,6 +18,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import { ScrollablePillBar } from '../../components/ScrollablePillBar';
 import {
   downloadReceiptWithRememberedFolder,
   getSavedReceiptDirectoryHandle,
@@ -551,13 +552,15 @@ export function TrusteeReimbursementQueue({
         </div>
       )}
 
-      <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+      <ScrollablePillBar ariaLabel="Filter reimbursement claims by status">
         {FILTERS.map((f) => (
           <button
             key={f.key}
             type="button"
+            role="tab"
+            aria-selected={filter === f.key}
             onClick={() => setFilter(f.key)}
-            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
               filter === f.key
                 ? 'bg-parish-navy text-white'
                 : 'border border-parish-border bg-white text-parish-muted hover:text-parish-ink'
@@ -566,7 +569,7 @@ export function TrusteeReimbursementQueue({
             {f.label}
           </button>
         ))}
-      </div>
+      </ScrollablePillBar>
 
       {loading && claims.length === 0 ? (
         <div className="rounded-2xl border border-parish-border bg-white p-8 text-center text-xs text-parish-muted">

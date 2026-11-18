@@ -10,6 +10,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
+import { ScrollablePillBar } from '../../components/ScrollablePillBar';
 import { isSupabaseConfigured, supabase } from '../../lib/supabase';
 import {
   deleteWeeklyBulletin,
@@ -505,7 +506,7 @@ export function AdminPortal({
       </div>
 
       {/* Admin Module Switcher */}
-      <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+      <ScrollablePillBar ariaLabel="Admin portal sections">
         {(
           [
             ['composer', 'Bulletin Composer'],
@@ -522,8 +523,10 @@ export function AdminPortal({
           <button
             key={key}
             type="button"
+            role="tab"
+            aria-selected={adminTab === key}
             onClick={() => setAdminTab(key)}
-            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
               adminTab === key
                 ? 'bg-parish-navy text-white'
                 : 'border border-parish-border bg-white text-parish-muted hover:text-parish-ink'
@@ -532,7 +535,7 @@ export function AdminPortal({
             {label}
           </button>
         ))}
-      </div>
+      </ScrollablePillBar>
 
       {adminTab === 'composer' && (
         <div className="space-y-3">
