@@ -3,7 +3,9 @@ import {
   ArrowDown,
   ArrowUp,
   Bell,
+  Calendar,
   CheckCircle2,
+  ChevronDown,
   Copy,
   Eye,
   FileText,
@@ -33,6 +35,7 @@ import {
   AnnouncementCard,
   AnnouncementCategory,
   DailyScheduleEntry,
+  DailyScheduleService,
   MinistryUpdate,
   SpecialAnnouncement,
   WeeklyBulletin,
@@ -67,6 +70,30 @@ Announcements
 • Sunday Collection: The total collection for Sunday, May 24 was $462.
 • Sunday Lunch Program: Here is the link to sign up for Sunday lunch program for next year:
 • https: //docs.google.com/forms/d/1mukLEikLdzj8LGTdcj8sMab4l5Gli3mMwEtf_Fq1-v8/edit`;
+
+const WEEKDAY_NAMES = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+] as const;
+
+function deriveWeekdayLabel(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  if (!y || !m || !d) return 'Day';
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return WEEKDAY_NAMES[dt.getUTCDay()] ?? 'Day';
+}
+
+function addDaysIso(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  if (!y || !m || !d) return isoDate;
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return dt.toISOString().slice(0, 10);
+}
 
 export function AdminBulletinComposer({
   initialBulletin,
@@ -107,6 +134,7 @@ export function AdminBulletinComposer({
   );
 
   // Publish & Push confirmation modal state
+  const [scheduleEditorOpen, setScheduleEditorOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [copiedHelp, setCopiedHelp] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
@@ -178,6 +206,102 @@ export function AdminBulletinComposer({
     );
   };
 
+  // Daily Holy Qurbana & Services inline editor helpers
+  const addScheduleDay = () => {
+    const lastDate = dailySchedule[dailySchedule.length - 1]?.date;
+    const nextDate = lastDate ? addDaysIso(lastDate, 1) : weekStart || new Date().toISOString().slice(0, 10);
+    setDailySchedule((prev) => [
+      ...prev,
+      {
+        date: nextDate,
+        dayLabel: deriveWeekdayLabel(nextDate),
+        feastNote: '',
+        items: [{ time: '7:00 PM', title: 'Holy Qurbana', celebrant: '' }],
+      },
+    ]);
+    setScheduleEditorOpen(true);
+  };
+
+  const generateWeekDaysFromStart = () => {
+    if (!weekStart) return;
+    const existingByDate = new Map(dailySchedule.map((d) => [d.date, d]));
+    const days: DailyScheduleEntry[] = Array.from({ length: 7 }, (_, i) => {
+      const date = addDaysIso(weekStart, i);
+      const existing = existingByDate.get(date);
+      if (existing) return existing;
+      const dayLabel = deriveWeekdayLabel(date);
+      return {
+        date,
+        dayLabel,
+        feastNote: '',
+        items:
+          dayLabel === 'Sunday'
+            ? [
+                { time: '8:00 AM', title: 'Holy Qurbana', celebrant: '' },
+                { time: '10:30 AM', title: 'Holy Qurbana (English)', celebrant: '' },
+              ]
+            : [{ time: '7:00 PM', title: 'Holy Qurbana', celebrant: '' }],
+      };
+    });
+    setDailySchedule(days);
+    setScheduleEditorOpen(true);
+  };
+
+  const updateScheduleDay = (dayIdx: number, patch: Partial<DailyScheduleEntry>) => {
+    setDailySchedule((prev) =>
+      prev.map((d, i) => (i === dayIdx ? { ...d, ...patch } : d))
+    );
+  };
+
+  const moveScheduleDay = (dayIdx: number, dir: -1 | 1) => {
+    const target = dayIdx + dir;
+    if (target < 0 || target >= dailySchedule.length) return;
+    setDailySchedule((prev) => {
+      const copy = [...prev];
+      [copy[dayIdx], copy[target]] = [copy[target], copy[dayIdx]];
+      return copy;
+    });
+  };
+
+  const removeScheduleDay = (dayIdx: number) => {
+    setDailySchedule((prev) => prev.filter((_, i) => i !== dayIdx));
+  };
+
+  const addServiceItem = (dayIdx: number) => {
+    setDailySchedule((prev) =>
+      prev.map((d, i) =>
+        i === dayIdx
+          ? { ...d, items: [...d.items, { time: '6:30 PM', title: 'Rosary', celebrant: '' }] }
+          : d
+      )
+    );
+  };
+
+  const updateServiceItem = (
+    dayIdx: number,
+    svcIdx: number,
+    patch: Partial<DailyScheduleService>
+  ) => {
+    setDailySchedule((prev) =>
+      prev.map((d, i) =>
+        i === dayIdx
+          ? {
+              ...d,
+              items: d.items.map((svc, sIdx) => (sIdx === svcIdx ? { ...svc, ...patch } : svc)),
+            }
+          : d
+      )
+    );
+  };
+
+  const removeServiceItem = (dayIdx: number, svcIdx: number) => {
+    setDailySchedule((prev) =>
+      prev.map((d, i) =>
+        i === dayIdx ? { ...d, items: d.items.filter((_, sIdx) => sIdx !== svcIdx) } : d
+      )
+    );
+  };
+
   const handleFlyerUpload = async (cardIdx: number, file: File) => {
     if (isSandbox) {
       setStatusBanner({
@@ -231,6 +355,19 @@ export function AdminBulletinComposer({
         .filter(Boolean) as ActionAttachment[],
     }));
 
+    const sanitizedSchedule: DailyScheduleEntry[] = dailySchedule.map((day) => ({
+      date: day.date,
+      dayLabel: sanitizePlainText(day.dayLabel) || deriveWeekdayLabel(day.date),
+      feastNote: day.feastNote ? sanitizePlainText(day.feastNote) : null,
+      items: day.items
+        .map((svc) => ({
+          time: sanitizePlainText(svc.time),
+          title: sanitizePlainText(svc.title),
+          celebrant: svc.celebrant ? sanitizePlainText(svc.celebrant) : null,
+        }))
+        .filter((svc) => svc.title || svc.time),
+    }));
+
     return {
       ...(bulletinId ? { id: bulletinId } : {}),
       schema_version: 1,
@@ -239,7 +376,7 @@ export function AdminBulletinComposer({
       title: sanitizePlainText(title),
       subtitle: 'Church Services & Parish Announcements',
       greeting: sanitizePlainText(greeting),
-      daily_schedule: dailySchedule,
+      daily_schedule: sanitizedSchedule,
       announcements: sanitizedAnnouncements,
       collection_summary: collectionAmount.trim()
         ? {
@@ -738,6 +875,199 @@ export function AdminBulletinComposer({
                 className="mt-1 w-full rounded-lg border border-[#E7E2DA] px-3 py-2 text-sm"
               />
             </div>
+          </div>
+
+          {/* Inline Collapsible Daily Schedule Editor ("This Week's Holy Qurbana & Services") */}
+          <div className="overflow-hidden rounded-2xl border border-[#E7E2DA] bg-white shadow-2xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+              <button
+                type="button"
+                aria-expanded={scheduleEditorOpen}
+                onClick={() => setScheduleEditorOpen((v) => !v)}
+                className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+              >
+                <div className="rounded-lg bg-[#1E3A5F]/10 p-2 text-[#1E3A5F]">
+                  <Calendar className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <h3 className="text-sm font-bold text-[#1E293B]">
+                      This Week&rsquo;s Holy Qurbana &amp; Services
+                    </h3>
+                    <span className="rounded-full border border-[#E7E2DA] bg-[#FAF8F5] px-2 py-0.5 text-[10px] font-semibold text-[#526071]">
+                      {dailySchedule.length} {dailySchedule.length === 1 ? 'day' : 'days'}
+                    </span>
+                    <ChevronDown
+                      className={`h-4 w-4 text-[#1E3A5F] transition-transform duration-200 ${
+                        scheduleEditorOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                  <p className="text-xs text-[#526071]">
+                    {scheduleEditorOpen
+                      ? 'Edit daily Mass times, celebrants, or feast notes without re-pasting.'
+                      : 'Tap to add or tweak daily Qurbana times & liturgical feast notes.'}
+                  </p>
+                </div>
+              </button>
+
+              {scheduleEditorOpen && (
+                <div className="flex flex-wrap gap-1.5">
+                  {weekStart && (
+                    <button
+                      type="button"
+                      onClick={generateWeekDaysFromStart}
+                      className="rounded-lg border border-[#E7E2DA] bg-[#FAF8F5] px-2.5 py-1.5 text-xs font-semibold text-[#1E3A5F] hover:bg-slate-100"
+                    >
+                      Fill Missing 7 Days
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={addScheduleDay}
+                    className="inline-flex items-center gap-1 rounded-lg bg-[#1E3A5F] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#152943]"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Day
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {scheduleEditorOpen && (
+              <div className="space-y-3 border-t border-[#E7E2DA] p-4">
+                {dailySchedule.length === 0 ? (
+                  <p className="text-xs text-[#526071]">
+                    No daily schedule rows yet. Click <strong>Fill Missing 7 Days</strong> or{' '}
+                    <strong>Add Day</strong> above, or use Smart Paste.
+                  </p>
+                ) : (
+                  dailySchedule.map((day, dayIdx) => (
+                    <div
+                      key={`${day.date}-${dayIdx}`}
+                      className="space-y-2.5 rounded-xl border border-[#E7E2DA] bg-[#FAF8F5] p-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-3">
+                          <input
+                            type="date"
+                            aria-label="Service date"
+                            value={day.date}
+                            onChange={(e) => {
+                              const nextDate = e.target.value;
+                              updateScheduleDay(dayIdx, {
+                                date: nextDate,
+                                dayLabel: nextDate ? deriveWeekdayLabel(nextDate) : day.dayLabel,
+                              });
+                            }}
+                            className="rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs font-medium"
+                          />
+                          <input
+                            type="text"
+                            aria-label="Day label"
+                            value={day.dayLabel}
+                            onChange={(e) => updateScheduleDay(dayIdx, { dayLabel: e.target.value })}
+                            placeholder="e.g. Sunday"
+                            className="rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs font-semibold"
+                          />
+                          <input
+                            type="text"
+                            aria-label="Feast or liturgical note"
+                            value={day.feastNote ?? ''}
+                            onChange={(e) => updateScheduleDay(dayIdx, { feastNote: e.target.value })}
+                            placeholder="Feast note (optional)"
+                            className="rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs"
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => moveScheduleDay(dayIdx, -1)}
+                            disabled={dayIdx === 0}
+                            aria-label="Move day up"
+                            className="rounded p-1 text-[#526071] hover:bg-white disabled:opacity-30"
+                          >
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveScheduleDay(dayIdx, 1)}
+                            disabled={dayIdx === dailySchedule.length - 1}
+                            aria-label="Move day down"
+                            className="rounded p-1 text-[#526071] hover:bg-white disabled:opacity-30"
+                          >
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeScheduleDay(dayIdx)}
+                            aria-label="Remove day"
+                            className="rounded p-1 text-rose-600 hover:bg-rose-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 pl-1">
+                        {day.items.map((svc, svcIdx) => (
+                          <div key={svcIdx} className="flex flex-wrap items-center gap-2">
+                            <input
+                              type="text"
+                              aria-label="Service time"
+                              value={svc.time}
+                              onChange={(e) =>
+                                updateServiceItem(dayIdx, svcIdx, { time: e.target.value })
+                              }
+                              placeholder="8:00 AM"
+                              className="w-24 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#1E3A5F]"
+                            />
+                            <input
+                              type="text"
+                              aria-label="Service title"
+                              value={svc.title}
+                              onChange={(e) =>
+                                updateServiceItem(dayIdx, svcIdx, { title: e.target.value })
+                              }
+                              placeholder="Holy Qurbana / Rosary / N/A"
+                              className="min-w-0 flex-1 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs"
+                            />
+                            <input
+                              type="text"
+                              aria-label="Celebrant"
+                              value={svc.celebrant ?? ''}
+                              onChange={(e) =>
+                                updateServiceItem(dayIdx, svcIdx, { celebrant: e.target.value })
+                              }
+                              placeholder="Celebrant (optional)"
+                              className="w-40 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeServiceItem(dayIdx, svcIdx)}
+                              aria-label="Remove service"
+                              className="rounded p-1 text-rose-600 hover:bg-rose-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+
+                        <button
+                          type="button"
+                          onClick={() => addServiceItem(dayIdx)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#1E3A5F] hover:bg-slate-50"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add Service
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
