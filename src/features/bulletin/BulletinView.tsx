@@ -745,6 +745,16 @@ export function BulletinView({
               })}
             </div>
           )}
+
+          {/* Tap-to-Reveal Weekly Offertory / Contribution Card grouped under Weekly Announcements */}
+          {activeBulletin.collection_summary && (
+            <div className="pt-1">
+              <CollectionHighlightCard
+                key={activeBulletin.id}
+                collection={activeBulletin.collection_summary}
+              />
+            </div>
+          )}
               </div>
             </div>
           </div>
@@ -840,14 +850,6 @@ export function BulletinView({
 
       {/* Dismissible Push Opt-In Prompt ONLY if not yet subscribed (hidden once enabled or in preview) */}
       {!isPreview && selectedWeekIndex === 0 && <PushOptInCard compact />}
-
-      {/* Tap-to-Reveal Sunday Collection Highlight Card */}
-      {activeBulletin.collection_summary && (
-        <CollectionHighlightCard
-          key={activeBulletin.id}
-          collection={activeBulletin.collection_summary}
-        />
-      )}
 
       {/* Pastoral Sign-Off Footer */}
       <footer className="rounded-2xl border border-parish-border bg-white p-5 text-center">
