@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { ScrollablePillBar } from '../../components/ScrollablePillBar';
 import {
+  clearPreferredReceiptDirectory,
   downloadReceiptWithRememberedFolder,
   getSavedReceiptDirectoryHandle,
   isDirectoryPickerSupported,
@@ -143,6 +144,15 @@ export function TrusteeReimbursementQueue({
         text: err instanceof Error ? err.message : 'Unable to select download folder.',
       });
     }
+  };
+
+  const handleClearReceiptFolder = async () => {
+    await clearPreferredReceiptDirectory();
+    setSavedFolderName(null);
+    setToast({
+      type: 'ok',
+      text: 'Cleared saved download folder. You will be prompted on your next receipt download.',
+    });
   };
 
   const handleDownloadReceipt = async (claim: ReimbursementClaim) => {
@@ -310,15 +320,39 @@ export function TrusteeReimbursementQueue({
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {isDirectoryPickerSupported() && (
-            <button
-              type="button"
-              onClick={handleChooseReceiptFolder}
-              title="Choose preferred local folder for downloaded receipts"
-              className="inline-flex items-center gap-1 rounded-xl border border-parish-border bg-parish-canvas/70 px-2.5 py-1.5 text-xs font-semibold text-parish-navy hover:bg-parish-canvas"
-            >
-              <FolderCog className="h-3.5 w-3.5" />
-              {savedFolderName ? `Folder: ${savedFolderName}` : 'Set Receipt Folder'}
-            </button>
+            <div className="inline-flex items-center overflow-hidden rounded-xl border border-parish-border bg-parish-canvas/70">
+              <button
+                type="button"
+                onClick={handleChooseReceiptFolder}
+                title={
+                  savedFolderName
+                    ? `Current folder: ${savedFolderName} — click to change folder`
+                    : 'Choose preferred local folder for downloaded receipts'
+                }
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-parish-navy hover:bg-parish-canvas"
+              >
+                <FolderCog className="h-3.5 w-3.5 shrink-0" />
+                {savedFolderName ? (
+                  <>
+                    <span className="max-w-28 truncate">{savedFolderName}</span>
+                    <span className="text-[11px] font-medium underline opacity-85">Change</span>
+                  </>
+                ) : (
+                  <span>Set Receipt Folder</span>
+                )}
+              </button>
+              {savedFolderName && (
+                <button
+                  type="button"
+                  onClick={handleClearReceiptFolder}
+                  title="Forget saved folder & ask next time"
+                  aria-label="Reset saved download folder"
+                  className="border-l border-parish-border px-2 py-1.5 text-parish-muted hover:bg-rose-50 hover:text-rose-700"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              )}
+            </div>
           )}
           <button
             type="button"

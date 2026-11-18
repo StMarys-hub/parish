@@ -12,6 +12,7 @@ interface FileSystemHandlePermission {
 type DirectoryPickerFn = (options?: {
   id?: string;
   mode?: 'read' | 'readwrite';
+  startIn?: FileSystemDirectoryHandle | 'desktop' | 'documents' | 'downloads';
 }) => Promise<FileSystemDirectoryHandle>;
 
 export function isDirectoryPickerSupported(): boolean {
@@ -123,9 +124,29 @@ async function saveReceiptDirectoryHandle(handle: FileSystemDirectoryHandle): Pr
 export async function pickPreferredReceiptDirectory(): Promise<{ folderName: string } | null> {
   if (!isDirectoryPickerSupported()) return null;
   const picker = (window as unknown as { showDirectoryPicker: DirectoryPickerFn }).showDirectoryPicker;
-  const handle = await picker({ id: 'parish-receipts', mode: 'readwrite' });
+  const existing = await getSavedReceiptDirectoryHandle();
+  const handle = await picker({
+    id: 'parish-receipts',
+    mode: 'readwrite',
+    startIn: existing ?? 'downloads',
+  });
   await saveReceiptDirectoryHandle(handle);
   return { folderName: handle.name };
+}
+
+export async function clearPreferredReceiptDirectory(): Promise<void> {
+  try {
+    const db = await openPrefsDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      const store = tx.objectStore(IDB_STORE);
+      const req = store.delete(RECEIPT_DIR_KEY);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    // Ignore cleanup errors
+  }
 }
 
 async function ensureReadWritePermission(handle: FileSystemDirectoryHandle): Promise<boolean> {
