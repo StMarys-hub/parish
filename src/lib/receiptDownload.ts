@@ -33,27 +33,43 @@ function getExtensionFromClaim(claim: Pick<ReimbursementClaim, 'receipt_mime_typ
   return fileMatch ? fileMatch[1] : 'jpg';
 }
 
+function toSafeFilenameSegment(value: string | undefined | null, maxLen: number, fallback: string): string {
+  return (
+    (value || '')
+      .replace(/[^A-Za-z0-9-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, maxLen) || fallback
+  );
+}
+
 /**
- * Generates a descriptive receipt filename such as `Receipt_2026-11-15_CML_45.50.pdf`.
+ * Generates a unique, collision-free descriptive receipt filename such as
+ * `Receipt_2026-11-16_Linet_Jose_CML_25.00_CLM-2TRJAB.pdf`.
  */
 export function buildReceiptDownloadFilename(
   claim: Pick<
     ReimbursementClaim,
-    'expense_date' | 'ministry' | 'amount_cents' | 'receipt_mime_type' | 'receipt_file_name'
+    | 'full_name'
+    | 'reference_code'
+    | 'expense_date'
+    | 'ministry'
+    | 'amount_cents'
+    | 'receipt_mime_type'
+    | 'receipt_file_name'
   >
 ): string {
   const safeDate = (claim.expense_date || new Date().toISOString().slice(0, 10)).replace(
     /[^0-9-]/g,
     ''
   );
-  const safeMinistry =
-    (claim.ministry || 'Parish')
-      .replace(/[^A-Za-z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .slice(0, 24) || 'Parish';
+  const safeOwner = toSafeFilenameSegment(claim.full_name, 28, 'Submitter');
+  const safeMinistry = toSafeFilenameSegment(claim.ministry, 24, 'Parish');
+  const safeRef = (claim.reference_code || '')
+    .replace(/[^A-Za-z0-9-]+/g, '')
+    .slice(0, 16);
   const amount = (claim.amount_cents / 100).toFixed(2);
   const ext = getExtensionFromClaim(claim);
-  return `Receipt_${safeDate}_${safeMinistry}_${amount}.${ext}`;
+  return `Receipt_${safeDate}_${safeOwner}_${safeMinistry}_${amount}${safeRef ? `_${safeRef}` : ''}.${ext}`;
 }
 
 function openPrefsDb(): Promise<IDBDatabase> {
@@ -154,7 +170,13 @@ export interface ReceiptDownloadOutcome {
 export async function downloadReceiptWithRememberedFolder(params: {
   claim: Pick<
     ReimbursementClaim,
-    'expense_date' | 'ministry' | 'amount_cents' | 'receipt_mime_type' | 'receipt_file_name'
+    | 'full_name'
+    | 'reference_code'
+    | 'expense_date'
+    | 'ministry'
+    | 'amount_cents'
+    | 'receipt_mime_type'
+    | 'receipt_file_name'
   >;
   signedUrl: string;
 }): Promise<ReceiptDownloadOutcome> {
