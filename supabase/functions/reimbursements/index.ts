@@ -160,6 +160,7 @@ async function sanitizeClaimRow(
     amount_cents: row.amount_cents,
     description: row.description,
     payout_method: row.payout_method,
+    ...(includeContact && receiptPath ? { receipt_path: receiptPath } : {}),
     receipt_mime_type: row.receipt_mime_type,
     receipt_file_name: row.receipt_file_name,
     receipt_signed_url: receiptSignedUrl,
@@ -554,6 +555,26 @@ Deno.serve(async (req: Request) => {
         (rows ?? []).map((row) => sanitizeClaimRow(adminClient, row, true))
       );
       return jsonOk({ claims });
+    }
+
+    if (action === "admin_receipt_url") {
+      const id = cleanText(body.id, 64);
+      if (!id) return jsonError("Valid reimbursement id required", 400);
+      const { data: claimRow, error: claimErr } = await adminClient
+        .from("reimbursements")
+        .select("id, receipt_path")
+        .eq("id", id)
+        .maybeSingle();
+      if (claimErr || !claimRow || typeof claimRow.receipt_path !== "string") {
+        return jsonError("Receipt attachment not found", 404);
+      }
+      const { data: signed, error: signErr } = await adminClient.storage
+        .from("receipts")
+        .createSignedUrl(claimRow.receipt_path, 60);
+      if (signErr || !signed?.signedUrl) {
+        return jsonError(signErr?.message ?? "Failed to sign receipt URL", 500);
+      }
+      return jsonOk({ signedUrl: signed.signedUrl });
     }
 
     if (action === "admin_review") {

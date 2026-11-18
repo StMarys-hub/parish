@@ -222,6 +222,7 @@ export interface ReimbursementClaim {
   amount_cents: number;
   description: string;
   payout_method: PayoutMethod;
+  receipt_path?: string | null;
   receipt_mime_type?: string | null;
   receipt_file_name?: string | null;
   receipt_signed_url?: string | null;

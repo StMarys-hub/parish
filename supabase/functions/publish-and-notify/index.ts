@@ -13,6 +13,7 @@ const corsHeaders = {
 
 interface NotifyRequest {
   bulletinId?: string;
+  specialNoticeId?: string;
   sendPush: boolean;
   pushTitle?: string;
   pushBody?: string;
@@ -86,6 +87,17 @@ Deno.serve(async (req: Request) => {
 
     const body = (await req.json()) as NotifyRequest;
 
+    // Special Notices & standalone push notifications require super_admin (Vicar) or trustee role
+    if (
+      body.sendPush &&
+      !["super_admin", "vicar", "trustee"].includes(String(adminRecord.role))
+    ) {
+      return jsonError(
+        "Forbidden: Only Vicar (super_admin) or Trustee roles may dispatch push notifications.",
+        403
+      );
+    }
+
     // 3. Publish bulletin if bulletinId is supplied
     let targetWeekStart: string | null = null;
     if (body.bulletinId) {
@@ -153,7 +165,11 @@ Deno.serve(async (req: Request) => {
       title: (body.pushTitle ?? "St. Mary's Parish Update").slice(0, 100),
       body: (body.pushBody ?? "A new weekly schedule and parish bulletin is available.").slice(0, 220),
       url: body.pushUrl ?? (targetWeekStart ? `/?week=${targetWeekStart}` : "/"),
-      tag: targetWeekStart ? `bulletin-${targetWeekStart}` : "parish-alert",
+      tag: body.specialNoticeId
+        ? `special-${body.specialNoticeId}`
+        : targetWeekStart
+          ? `bulletin-${targetWeekStart}`
+          : "parish-alert",
     });
 
     let sentCount = 0;
@@ -240,7 +256,7 @@ Deno.serve(async (req: Request) => {
       actor_role: adminRecord.role,
       action: "PUSH_DISPATCH",
       table_name: "push_subscriptions",
-      record_id: body.bulletinId ?? "urgent-alert",
+      record_id: body.bulletinId ?? body.specialNoticeId ?? "urgent-alert",
       change_summary: `Sent push notification to ${sentCount} active devices (${expiredIds.length} expired deactivated${
         deliveryErrors.length > 0 ? `, ${deliveryErrors.length} failed` : ""
       })`,

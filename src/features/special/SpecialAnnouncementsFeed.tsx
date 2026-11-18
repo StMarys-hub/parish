@@ -187,7 +187,7 @@ export function SpecialAnnouncementsFeed({
 
   return (
     <section
-      className="rounded-2xl border border-parish-border/80 bg-white/75 p-3 shadow-2xs sm:p-3.5"
+      className="rounded-2xl border border-parish-gold/30 bg-white/80 p-2.5 shadow-2xs sm:p-3"
       aria-label="Special Notices from Parish Vicar"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -195,22 +195,23 @@ export function SpecialAnnouncementsFeed({
           type="button"
           aria-expanded={sectionExpanded}
           onClick={() => setSectionExpanded((prev) => !prev)}
-          className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1 py-0.5 text-left transition-colors hover:bg-parish-canvas/70"
+          className="group flex min-w-0 flex-1 items-center gap-2 rounded-xl border-l-[3px] border-l-parish-gold bg-parish-gold-soft/75 px-2.5 py-1.5 text-left transition-colors hover:bg-parish-gold-soft"
         >
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-parish-gold-soft text-parish-gold-ink">
-            <Megaphone className="h-4 w-4" />
+          <div className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-lg bg-white/90 text-parish-gold-ink shadow-2xs">
+            <Megaphone className="h-3.5 w-3.5" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
-              <h2 className="text-sm font-bold text-parish-ink group-hover:text-parish-navy">
+              <h2 className="text-[13px] font-bold tracking-tight text-parish-navy sm:text-sm">
                 Special Vicar & Parish Notices
               </h2>
               {unreadItems.length > 0 ? (
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+                  <span className="h-[7px] w-[7px] rounded-full bg-red-500 ring-1 ring-white" />
                   {unreadItems.length} New
                 </span>
               ) : (
-                <span className="rounded-full border border-parish-border bg-parish-canvas px-2 py-0.5 text-[10px] font-semibold text-parish-muted">
+                <span className="rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-parish-muted ring-1 ring-parish-border/70">
                   {items.length}
                 </span>
               )}
@@ -221,7 +222,7 @@ export function SpecialAnnouncementsFeed({
                 aria-hidden="true"
               />
             </div>
-            <p className="text-[11px] text-parish-muted">
+            <p className="truncate text-[11px] text-parish-muted">
               {sectionExpanded
                 ? unreadItems.length > 0
                   ? `${unreadItems.length} new ${unreadItems.length === 1 ? 'notice' : 'notices'} — tap title to collapse`

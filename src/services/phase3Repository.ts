@@ -601,3 +601,63 @@ export async function deleteReimbursementSubmitter(email: string): Promise<void>
     email,
   });
 }
+
+export async function getFreshReceiptDownloadUrl(claim: {
+  id: string;
+  receipt_path?: string | null;
+  receipt_signed_url?: string | null;
+}): Promise<string> {
+  if (!supabase) throw new Error('Supabase is not configured');
+
+  if (claim.receipt_path) {
+    const { data, error } = await supabase.storage
+      .from('receipts')
+      .createSignedUrl(claim.receipt_path, 60);
+    if (!error && data?.signedUrl) {
+      return data.signedUrl;
+    }
+  }
+
+  try {
+    const res = await invokeReimbursementsJson<{ signedUrl?: string }>({
+      action: 'admin_receipt_url',
+      id: claim.id,
+    });
+    if (res.signedUrl) return res.signedUrl;
+  } catch {
+    // Fallback to claim's existing 5-min signed URL when edge function hasn't redeployed yet
+  }
+
+  if (claim.receipt_signed_url) {
+    return claim.receipt_signed_url;
+  }
+  throw new Error('Receipt attachment URL is unavailable.');
+}
+
+export async function publishSpecialNoticePush(params: {
+  specialNoticeId: string;
+  pushTitle: string;
+  pushBody: string;
+}): Promise<{
+  sent: number;
+  deactivated: number;
+  failedCount?: number;
+}> {
+  if (!supabase) throw new Error('Supabase is not configured');
+  await requireFreshUserId();
+
+  const { data, error } = await supabase.functions.invoke('publish-and-notify', {
+    body: {
+      specialNoticeId: params.specialNoticeId,
+      sendPush: true,
+      pushTitle: params.pushTitle,
+      pushBody: params.pushBody,
+      pushUrl: '/',
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Failed to dispatch Special Notice push notification.');
+  }
+  return data as { sent: number; deactivated: number; failedCount?: number };
+}

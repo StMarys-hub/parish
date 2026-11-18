@@ -164,7 +164,7 @@ export function App() {
     <div className="min-h-screen bg-parish-canvas pb-24 sm:pb-10">
       {/* Persistent Top Header (Fixed height for zero CLS) */}
       <header className="sticky top-0 z-30 border-b border-parish-border bg-white/95 backdrop-blur-sm">
-        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4">
+        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-2 sm:px-3.5">
           <button
             type="button"
             onClick={() => navigate('bulletin')}
@@ -255,7 +255,7 @@ export function App() {
       </header>
 
       {/* Main Content Container */}
-      <main className="mx-auto max-w-3xl px-4 pt-3.5">
+      <main className="mx-auto max-w-3xl px-2 pt-2.5 sm:px-3.5">
         {activeTab !== 'admin' && (
           <ErrorBoundary>
             <InstallShareBanner variant="banner" />

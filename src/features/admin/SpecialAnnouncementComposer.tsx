@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Archive,
+  Bell,
   CheckCircle2,
   ChevronDown,
   Eye,
@@ -23,6 +24,7 @@ import { sanitizeActionUrl, sanitizePlainText } from '../../lib/sanitize';
 import {
   deleteSpecialAnnouncement,
   fetchAllSpecialAnnouncementsForAdmin,
+  publishSpecialNoticePush,
   setSpecialAnnouncementStatus,
   uploadSpecialFlyer,
   upsertSpecialAnnouncement,
@@ -124,6 +126,8 @@ export function SpecialAnnouncementComposer({
   const [flyerMimeType, setFlyerMimeType] = useState('');
   const [flyerNote, setFlyerNote] = useState<string | null>(null);
   const [isPinned, setIsPinned] = useState(true);
+  // Default unchecked to prevent accidental notifications on new Special Notices
+  const [sendPush, setSendPush] = useState(false);
 
   const [previewExpanded, setPreviewExpanded] = useState(true);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -243,10 +247,12 @@ export function SpecialAnnouncementComposer({
     setFlyerMimeType('');
     setFlyerNote(null);
     setIsPinned(true);
+    setSendPush(false);
   };
 
   const startEditing = (item: SpecialAnnouncement) => {
     setEditingId(item.id);
+    setSendPush(false);
     setRawPaste(item.raw_message || item.description || '');
     setTitle(item.title);
     setCategoryBadge(item.category_badge ?? 'Vicar Note');
@@ -303,7 +309,8 @@ export function SpecialAnnouncementComposer({
         locationLabel: locationLabel.trim() ? sanitizePlainText(locationLabel) : null,
       };
 
-      await upsertSpecialAnnouncement({
+      const isNewPublish = !editingId;
+      const saved = await upsertSpecialAnnouncement({
         id: editingId,
         title: title.trim(),
         category_badge: categoryBadge,
@@ -323,11 +330,31 @@ export function SpecialAnnouncementComposer({
         is_pinned: isPinned,
         status: 'published',
       });
+
+      let successText = isNewPublish
+        ? 'Special Notice published to Parish Bulletin Board!'
+        : 'Special Notice updated cleanly.';
+
+      if (isNewPublish && sendPush) {
+        try {
+          const pushRes = await publishSpecialNoticePush({
+            specialNoticeId: saved.id,
+            pushTitle: `${saved.category_badge ?? 'Special Notice'}: ${saved.title}`.slice(0, 100),
+            pushBody: (saved.summary_preview || saved.description).slice(0, 220),
+          });
+          successText = `Special Notice published! Push sent to ${pushRes.sent} devices${
+            pushRes.deactivated > 0 ? ` (${pushRes.deactivated} expired removed)` : ''
+          }.`;
+        } catch (pushErr) {
+          successText = `Special Notice published, but push dispatch reported: ${
+            pushErr instanceof Error ? pushErr.message : 'Unable to send push'
+          }`;
+        }
+      }
+
       setStatusBanner({
         type: 'ok',
-        text: editingId
-          ? 'Special Notice updated cleanly.'
-          : 'Special Notice published to Parish Bulletin Board!',
+        text: successText,
       });
       resetForm();
       await loadExisting();
@@ -660,7 +687,19 @@ export function SpecialAnnouncementComposer({
             </div>
           )}
 
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {!editingId && (
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-[#1E293B]">
+                <input
+                  type="checkbox"
+                  checked={sendPush}
+                  onChange={(e) => setSendPush(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-[#1E3A5F]"
+                />
+                <Bell className="h-3.5 w-3.5 text-[#D97706]" aria-hidden="true" />
+                <span>Send instant push notification to parishioners</span>
+              </label>
+            )}
             <button
               type="submit"
               disabled={saving}

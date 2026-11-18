@@ -4,8 +4,10 @@ import {
   CheckCircle2,
   ChevronDown,
   DollarSign,
+  Download,
   ExternalLink,
   Eye,
+  FolderCog,
   Lock,
   Plus,
   Receipt,
@@ -17,9 +19,16 @@ import {
   XCircle,
 } from 'lucide-react';
 import {
+  downloadReceiptWithRememberedFolder,
+  getSavedReceiptDirectoryHandle,
+  isDirectoryPickerSupported,
+  pickPreferredReceiptDirectory,
+} from '../../lib/receiptDownload';
+import {
   deleteReimbursementSubmitter,
   fetchAdminReimbursements,
   fetchReimbursementSecurity,
+  getFreshReceiptDownloadUrl,
   reviewAdminReimbursement,
   updateReimbursementSecurity,
   upsertReimbursementSubmitter,
@@ -57,6 +66,8 @@ export function TrusteeReimbursementQueue({
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   const [previewClaim, setPreviewClaim] = useState<ReimbursementClaim | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [savedFolderName, setSavedFolderName] = useState<string | null>(null);
   const [declineTarget, setDeclineTarget] = useState<ReimbursementClaim | null>(null);
   const [declineReason, setDeclineReason] = useState('');
 
@@ -106,6 +117,60 @@ export function TrusteeReimbursementQueue({
   useEffect(() => {
     loadQueue();
   }, [loadQueue]);
+
+  useEffect(() => {
+    if (!isDirectoryPickerSupported()) return;
+    getSavedReceiptDirectoryHandle().then((h) => {
+      if (h?.name) setSavedFolderName(h.name);
+    });
+  }, []);
+
+  const handleChooseReceiptFolder = async () => {
+    try {
+      const picked = await pickPreferredReceiptDirectory();
+      if (picked?.folderName) {
+        setSavedFolderName(picked.folderName);
+        setToast({
+          type: 'ok',
+          text: `Receipts will now save automatically to folder "${picked.folderName}".`,
+        });
+      }
+    } catch (err) {
+      if ((err as DOMException)?.name === 'AbortError') return;
+      setToast({
+        type: 'err',
+        text: err instanceof Error ? err.message : 'Unable to select download folder.',
+      });
+    }
+  };
+
+  const handleDownloadReceipt = async (claim: ReimbursementClaim) => {
+    setDownloadingId(claim.id);
+    setToast(null);
+    try {
+      const signedUrl = await getFreshReceiptDownloadUrl(claim);
+      const outcome = await downloadReceiptWithRememberedFolder({ claim, signedUrl });
+      if (outcome.mode === 'folder' && outcome.folderName) {
+        setSavedFolderName(outcome.folderName);
+        setToast({
+          type: 'ok',
+          text: `Saved ${outcome.fileName} to folder "${outcome.folderName}".`,
+        });
+      } else {
+        setToast({
+          type: 'ok',
+          text: `Downloaded ${outcome.fileName}.`,
+        });
+      }
+    } catch (err) {
+      setToast({
+        type: 'err',
+        text: err instanceof Error ? err.message : 'Receipt download failed.',
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const handleAction = async (
     claim: ReimbursementClaim,
@@ -242,15 +307,28 @@ export function TrusteeReimbursementQueue({
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={loadQueue}
-          disabled={loading}
-          className="inline-flex items-center gap-1 rounded-xl border border-parish-border px-3 py-1.5 text-xs font-semibold text-parish-navy hover:bg-parish-canvas"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {isDirectoryPickerSupported() && (
+            <button
+              type="button"
+              onClick={handleChooseReceiptFolder}
+              title="Choose preferred local folder for downloaded receipts"
+              className="inline-flex items-center gap-1 rounded-xl border border-parish-border bg-parish-canvas/70 px-2.5 py-1.5 text-xs font-semibold text-parish-navy hover:bg-parish-canvas"
+            >
+              <FolderCog className="h-3.5 w-3.5" />
+              {savedFolderName ? `Folder: ${savedFolderName}` : 'Set Receipt Folder'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={loadQueue}
+            disabled={loading}
+            className="inline-flex items-center gap-1 rounded-xl border border-parish-border px-3 py-1.5 text-xs font-semibold text-parish-navy hover:bg-parish-canvas"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Collapsible Anti-Spam & Access Control Panel */}
@@ -545,16 +623,28 @@ export function TrusteeReimbursementQueue({
                 )}
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-parish-border pt-3">
-                  <div>
-                    {claim.receipt_signed_url && (
-                      <button
-                        type="button"
-                        onClick={() => setPreviewClaim(claim)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-parish-navy/25 bg-parish-navy/5 px-3 py-1.5 text-xs font-semibold text-parish-navy hover:bg-parish-navy/10"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        Inspect Receipt
-                      </button>
+                  <div className="flex items-center gap-1.5">
+                    {(claim.receipt_signed_url || claim.receipt_path) && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewClaim(claim)}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-parish-navy/25 bg-parish-navy/5 px-3 py-1.5 text-xs font-semibold text-parish-navy hover:bg-parish-navy/10"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Inspect Receipt
+                        </button>
+                        <button
+                          type="button"
+                          disabled={downloadingId === claim.id}
+                          onClick={() => handleDownloadReceipt(claim)}
+                          title="Download Receipt"
+                          aria-label="Download Receipt"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-parish-border bg-white text-parish-navy hover:bg-parish-canvas disabled:opacity-50"
+                        >
+                          <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </>
                     )}
                   </div>
 
@@ -639,15 +729,26 @@ export function TrusteeReimbursementQueue({
                   className="max-h-[65vh] rounded-xl object-contain"
                 />
               )}
-              <a
-                href={previewClaim.receipt_signed_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-parish-navy underline"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                Open Original in New Tab
-              </a>
+              <div className="mt-3 flex flex-wrap items-center gap-4">
+                <a
+                  href={previewClaim.receipt_signed_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-parish-navy underline"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open Original in New Tab
+                </a>
+                <button
+                  type="button"
+                  disabled={downloadingId === previewClaim.id}
+                  onClick={() => handleDownloadReceipt(previewClaim)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-parish-navy px-3 py-1.5 text-xs font-semibold text-white hover:bg-parish-navy-dark disabled:opacity-50"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {downloadingId === previewClaim.id ? 'Downloading...' : 'Download Receipt'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

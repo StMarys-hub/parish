@@ -17,6 +17,7 @@ import {
 import { CollapsibleAnnouncementCard } from '../../components/CollapsibleAnnouncementCard';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { FlyerLightbox } from '../../components/FlyerLightbox';
+import { ScrollablePillBar } from '../../components/ScrollablePillBar';
 import { PHASE_FLAGS } from '../../config/features';
 import { computeAttentionBadges } from '../../lib/announcementSignals';
 import { useReadAnnouncements } from '../../lib/readReceipts';
@@ -60,6 +61,12 @@ function formatShortDate(isoDate: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
+function formatNumericMonthDay(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  if (!y || !m || !d) return isoDate;
+  return `${String(m).padStart(2, '0')}/${String(d).padStart(2, '0')}`;
+}
+
 function getActionIcon(kind: ActionAttachment['kind']) {
   switch (kind) {
     case 'form':
@@ -88,6 +95,7 @@ export function BulletinView({
   >('All');
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
   const [deferredMoveKeys, setDeferredMoveKeys] = useState<Set<string>>(() => new Set());
+  const [weeklyExpanded, setWeeklyExpanded] = useState(true);
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [lightboxFlyer, setLightboxFlyer] = useState<{
     title: string;
@@ -147,6 +155,19 @@ export function BulletinView({
     }
     return counts;
   }, [activeBulletin]);
+
+  const { unreadByCategory, unreadAllBulletinCount } = useMemo(() => {
+    const map = new Map<AnnouncementCategory, number>();
+    let totalUnread = 0;
+    if (!activeBulletin) return { unreadByCategory: map, unreadAllBulletinCount: 0 };
+    for (const item of activeBulletin.announcements) {
+      if (isUnread(`bulletin:${item.id}`)) {
+        totalUnread += 1;
+        map.set(item.category, (map.get(item.category) ?? 0) + 1);
+      }
+    }
+    return { unreadByCategory: map, unreadAllBulletinCount: totalUnread };
+  }, [activeBulletin, isUnread]);
 
   const visibleAnnouncements = useMemo(() => {
     if (!activeBulletin || selectedCategory === 'Ministry') return [];
@@ -268,7 +289,7 @@ export function BulletinView({
   return (
     <div className="space-y-3.5">
       {/* Compact Slim Liturgical Header + Inline Week Archive Selector */}
-      <section className="rounded-2xl bg-gradient-to-br from-parish-navy to-parish-navy-dark px-4 py-3 text-white shadow-sm">
+      <section className="rounded-2xl bg-gradient-to-br from-parish-navy to-parish-navy-dark px-3 py-2.5 text-white shadow-sm sm:px-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
             <span
@@ -347,92 +368,80 @@ export function BulletinView({
         </ErrorBoundary>
       )}
 
-      {/* Horizontal Category Filter Pills */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div
-          role="tablist"
-          aria-label="Filter announcements by category"
-          className="no-scrollbar flex flex-1 gap-2 overflow-x-auto pb-1"
+      {/* Horizontal Category Filter Pills with Dynamic Edge Fades, Floating Scroll Hints & Consistent Unread Dots */}
+      <ScrollablePillBar ariaLabel="Filter announcements by category">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={selectedCategory === 'All'}
+          onClick={() => setSelectedCategory('All')}
+          className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+            selectedCategory === 'All'
+              ? 'bg-parish-navy text-white'
+              : 'border border-parish-border bg-white text-parish-muted hover:text-parish-ink'
+          }`}
         >
+          <span>All ({activeBulletin.announcements.length})</span>
+          {PHASE_FLAGS.unreadIndicators && unreadAllBulletinCount > 0 && (
+            <span
+              aria-label={`${unreadAllBulletinCount} unread weekly announcements`}
+              className="h-[7px] w-[7px] shrink-0 rounded-full bg-red-500 ring-1 ring-white"
+            />
+          )}
+        </button>
+
+        {PHASE_FLAGS.ministryUpdates && (
           <button
             type="button"
             role="tab"
-            aria-selected={selectedCategory === 'All'}
-            onClick={() => setSelectedCategory('All')}
-            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-              selectedCategory === 'All'
+            aria-selected={selectedCategory === 'Ministry'}
+            onClick={() => setSelectedCategory('Ministry')}
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+              selectedCategory === 'Ministry'
                 ? 'bg-parish-navy text-white'
                 : 'border border-parish-border bg-white text-parish-muted hover:text-parish-ink'
             }`}
           >
-            All ({activeBulletin.announcements.length})
+            <span>Ministry ({ministryUpdates.length})</span>
+            {unreadMinistryCount > 0 && (
+              <span
+                aria-label={`${unreadMinistryCount} unread ministry updates`}
+                className="h-[7px] w-[7px] shrink-0 rounded-full bg-red-500 ring-1 ring-white"
+              />
+            )}
           </button>
+        )}
 
-          {PHASE_FLAGS.ministryUpdates && (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={selectedCategory === 'Ministry'}
-              onClick={() => setSelectedCategory('Ministry')}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-                selectedCategory === 'Ministry'
-                  ? 'bg-parish-navy text-white'
-                  : 'border border-parish-border bg-white text-parish-muted hover:text-parish-ink'
-              }`}
-            >
-              Ministry ({ministryUpdates.length})
-              {unreadMinistryCount > 0 && (
-                <span
-                  aria-label={`${unreadMinistryCount} unread ministry updates`}
-                  className="h-2 w-2 rounded-full bg-rose-500"
-                />
-              )}
-            </button>
-          )}
-
-          {Array.from(categoryCounts.entries()).map(([cat, count]) => (
+        {Array.from(categoryCounts.entries()).map(([cat, count]) => {
+          const catUnread = PHASE_FLAGS.unreadIndicators
+            ? unreadByCategory.get(cat) ?? 0
+            : 0;
+          return (
             <button
               key={cat}
               type="button"
               role="tab"
               aria-selected={selectedCategory === cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                 selectedCategory === cat
                   ? 'bg-parish-navy text-white'
                   : 'border border-parish-border bg-white text-parish-muted hover:text-parish-ink'
               }`}
             >
-              {cat} ({count})
+              <span>
+                {cat} ({count})
+              </span>
+              {catUnread > 0 && (
+                <span
+                  aria-label={`${catUnread} unread in ${cat}`}
+                  className="h-[7px] w-[7px] shrink-0 rounded-full bg-red-500 ring-1 ring-white"
+                />
+              )}
             </button>
-          ))}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1.5">
-          {selectedCategory !== 'Ministry' && visibleAnnouncements.length > 0 && (
-            <button
-              type="button"
-              onClick={toggleExpandAllVisible}
-              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-white px-3 py-1 text-[11px] font-semibold text-parish-navy hover:bg-parish-canvas"
-            >
-              <ChevronsUpDown className="h-3.5 w-3.5" />
-              {allVisibleExpanded ? 'Collapse All' : 'Expand All'}
-            </button>
-          )}
-          {PHASE_FLAGS.unreadIndicators &&
-            selectedCategory !== 'Ministry' &&
-            unreadVisibleKeys.length > 0 && (
-              <button
-                type="button"
-                onClick={() => markManyRead(unreadVisibleKeys)}
-                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-white px-3 py-1 text-[11px] font-semibold text-parish-navy hover:bg-parish-canvas"
-              >
-                <CheckCheck className="h-3.5 w-3.5" />
-                Mark {unreadVisibleKeys.length} Read
-              </button>
-            )}
-        </div>
-      </div>
+          );
+        })}
+      </ScrollablePillBar>
 
       {/* Categorized Announcement Cards or Grouped Ministry Updates */}
       {selectedCategory === 'Ministry' && PHASE_FLAGS.ministryUpdates ? (
@@ -454,7 +463,69 @@ export function BulletinView({
           />
         </ErrorBoundary>
       ) : (
-        <div className="space-y-2.5">
+        <section
+          className="rounded-2xl border border-parish-border/80 bg-white/80 p-2.5 shadow-2xs sm:p-3"
+          aria-label="Weekly Announcements"
+        >
+          {/* Collapsible Weekly Announcements Master Header */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              aria-expanded={weeklyExpanded}
+              onClick={() => setWeeklyExpanded((v) => !v)}
+              className="group flex min-w-0 flex-1 items-center gap-2 rounded-xl px-1 py-1 text-left transition-colors hover:bg-parish-canvas/70"
+            >
+              <Calendar className="h-4 w-4 shrink-0 text-parish-navy" aria-hidden="true" />
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                <h2 className="text-[13px] font-bold tracking-tight text-parish-ink group-hover:text-parish-navy sm:text-sm">
+                  Weekly Announcements ({formatNumericMonthDay(activeBulletin.week_start)} –{' '}
+                  {formatNumericMonthDay(activeBulletin.week_end)})
+                </h2>
+                <span className="inline-flex items-center gap-1 rounded-full border border-parish-border bg-parish-canvas px-2 py-0.5 text-[10px] font-semibold text-parish-navy">
+                  {visibleAnnouncements.length}
+                  {PHASE_FLAGS.unreadIndicators && unreadVisibleKeys.length > 0 && (
+                    <span
+                      aria-label={`${unreadVisibleKeys.length} unread`}
+                      className="h-[6px] w-[6px] rounded-full bg-red-500"
+                    />
+                  )}
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 text-parish-navy transition-transform duration-200 ${
+                    weeklyExpanded ? 'rotate-180' : ''
+                  }`}
+                  aria-hidden="true"
+                />
+              </div>
+            </button>
+
+            {weeklyExpanded && visibleAnnouncements.length > 0 && (
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={toggleExpandAllVisible}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-white px-2.5 py-1 text-[11px] font-semibold text-parish-navy hover:bg-parish-canvas"
+                >
+                  <ChevronsUpDown className="h-3.5 w-3.5" />
+                  {allVisibleExpanded ? 'Collapse All' : 'Expand All'}
+                </button>
+                {PHASE_FLAGS.unreadIndicators && unreadVisibleKeys.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => markManyRead(unreadVisibleKeys)}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-white px-2.5 py-1 text-[11px] font-semibold text-parish-navy hover:bg-parish-canvas"
+                  >
+                    <CheckCheck className="h-3.5 w-3.5" />
+                    Mark {unreadVisibleKeys.length} Read
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="parish-accordion-panel" data-open={weeklyExpanded}>
+            <div className="parish-accordion-inner">
+              <div className="space-y-2.5 pt-2.5">
           {[
             ...unreadAnnouncements.map((card) => ({ card, inReadSection: false })),
           ].map(({ card }) => {
@@ -674,7 +745,10 @@ export function BulletinView({
               })}
             </div>
           )}
-        </div>
+              </div>
+            </div>
+          </div>
+        </section>
       )}
 
       {/* Weekly Holy Qurbana Schedule & Offertory placed cleanly below primary updates */}

@@ -170,6 +170,20 @@
   }
 }
 
+/* Dynamic horizontal scroll edge fade masks for pill rows (zero vertical/horizontal footprint) */
+.parish-pill-mask-right {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent 100%);
+}
+.parish-pill-mask-left {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 100%);
+}
+.parish-pill-mask-both {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+}
+
 /* Hide scrollbars cleanly for horizontal category filter strips */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

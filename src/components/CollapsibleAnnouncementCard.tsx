@@ -12,6 +12,7 @@ import {
   Link2,
   Megaphone,
   Paperclip,
+  Pin,
   ShieldCheck,
   Users,
 } from 'lucide-react';
@@ -35,6 +36,7 @@ interface CollapsibleAnnouncementCardProps {
   canMoveToRead?: boolean;
   onMarkDoneAndMove?: () => void;
   badges?: AttentionBadgesResult;
+  isPinned?: boolean;
   featuredLabel?: string | null;
   highlighted?: boolean;
   reactionTargetType?: ReactionTargetType;
@@ -136,6 +138,7 @@ export function CollapsibleAnnouncementCard({
   canMoveToRead = false,
   onMarkDoneAndMove,
   badges,
+  isPinned = false,
   featuredLabel,
   highlighted = false,
   reactionTargetType,
@@ -191,13 +194,13 @@ export function CollapsibleAnnouncementCard({
             : 'border-parish-border/80'
       }`}
     >
-      {/* Clickable Summary Header (Minimum 56px touch target, zero scroll jumps) */}
+      {/* Clickable Summary Header (Minimum 56px touch target, 12px horizontal padding, zero scroll jumps) */}
       <button
         type="button"
         aria-expanded={isExpanded}
         onClick={onToggle}
         onKeyDown={handleHeaderKeyDown}
-        className={`flex min-h-[56px] w-full items-stretch gap-3 px-3.5 py-3.5 text-left transition-colors sm:px-4 ${
+        className={`flex min-h-[56px] w-full items-stretch gap-2.5 px-3 py-3 text-left transition-colors ${
           highlighted && !isExpanded
             ? 'bg-parish-gold-soft/30 hover:bg-parish-gold-soft/45'
             : isMutedRead
@@ -234,7 +237,17 @@ export function CollapsibleAnnouncementCard({
                 showNewPill={true}
               />
             )}
-            {featuredLabel && (
+            {(isPinned || featuredLabel?.toLowerCase() === 'pinned') && (
+              <span
+                role="img"
+                aria-label="Pinned notice"
+                title="Pinned notice"
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-parish-gold/40 bg-parish-gold-soft text-parish-gold"
+              >
+                <Pin className="h-3 w-3 fill-current" aria-hidden="true" />
+              </span>
+            )}
+            {featuredLabel && featuredLabel.toLowerCase() !== 'pinned' && (
               <span className="rounded-full bg-parish-navy px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
                 {featuredLabel}
               </span>
@@ -306,7 +319,7 @@ export function CollapsibleAnnouncementCard({
       {/* GPU-Accelerated Expanded Content Body */}
       <div className="parish-accordion-panel" data-open={isExpanded}>
         <div className="parish-accordion-inner">
-          <div className="border-t border-parish-border/80 px-4 pb-4 pt-3 sm:px-5">
+          <div className="border-t border-parish-border/80 px-3 pb-3.5 pt-2.5">
             {children}
 
             {(reactionTargetType || (canMoveToRead && onMarkDoneAndMove)) && (
