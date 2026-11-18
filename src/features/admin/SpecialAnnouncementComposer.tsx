@@ -279,6 +279,7 @@ export function SpecialAnnouncementComposer({
     setFlyerNote(null);
     setIsPinned(item.is_pinned);
     setStatusBanner(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -713,89 +714,152 @@ export function SpecialAnnouncementComposer({
       </div>
 
       {/* Existing Published & Archived Notices List */}
-      <div className="rounded-2xl border border-[#E7E2DA] bg-white p-5 shadow-xs">
-        <h3 className="text-sm font-bold text-[#1E293B]">Published & Archived Special Notices</h3>
+      <div className="rounded-2xl border border-[#E7E2DA] bg-white p-3 shadow-xs sm:p-4">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-bold text-[#1E293B]">
+            Published &amp; Archived Special Notices
+          </h3>
+          {existing.length > 0 && (
+            <span className="rounded-full border border-[#E7E2DA] bg-[#FAF8F5] px-2.5 py-0.5 text-[11px] font-semibold text-[#526071]">
+              {existing.length} {existing.length === 1 ? 'Notice' : 'Notices'}
+            </span>
+          )}
+        </div>
+
         {loadingList ? (
           <p className="mt-3 text-xs text-[#526071]">Loading notices...</p>
         ) : existing.length === 0 ? (
           <p className="mt-3 text-xs text-[#526071]">No Special Notices posted yet.</p>
         ) : (
           <div className="mt-3 space-y-2.5">
-            {existing.map((item) => (
-              <div
-                key={item.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E7E2DA] bg-[#FAF8F5] px-4 py-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase text-[#1E3A5F] ring-1 ring-[#E7E2DA]">
-                      {item.category_badge ?? 'Vicar Note'}
-                    </span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                        item.status === 'published'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-slate-200 text-slate-700'
-                      }`}
-                    >
-                      {item.status}
-                    </span>
-                    {item.is_pinned && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800">
-                        Pinned
-                      </span>
-                    )}
-                    <h4 className="text-sm font-bold text-[#1E293B]">{item.title}</h4>
-                  </div>
-                  <p className="mt-0.5 truncate text-xs text-[#526071]">
-                    {item.summary_preview || item.description}
-                  </p>
-                </div>
+            {existing.map((item) => {
+              const badge = item.category_badge ?? 'Vicar Note';
+              const categoryClass =
+                badge === 'Urgent'
+                  ? 'border-rose-200 bg-rose-50 text-rose-700'
+                  : badge === 'Media & Highlights'
+                    ? 'border-sky-200 bg-sky-50 text-sky-700'
+                    : badge === 'Sunday Liturgy'
+                      ? 'border-parish-navy/25 bg-parish-navy/8 text-parish-navy'
+                      : badge === 'Youth & Events'
+                        ? 'border-amber-200 bg-amber-50 text-amber-800'
+                        : 'border-parish-gold/40 bg-parish-gold-soft text-parish-gold-ink';
 
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleTogglePin(item)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#1E3A5F] hover:bg-slate-50"
-                  >
-                    {item.is_pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
-                    {item.is_pinned ? 'Unpin' : 'Pin'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => startEditing(item)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#1E3A5F] hover:bg-slate-50"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleStatus(item)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#526071] hover:bg-slate-50"
-                  >
-                    {item.status === 'published' ? (
-                      <>
-                        <Archive className="h-3.5 w-3.5" />
-                        Archive
-                      </>
-                    ) : (
-                      <>
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        Republish
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(item.id)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
+              const dateDisplay = new Date(
+                item.published_at || item.created_at || item.updated_at
+              ).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+              return (
+                <article
+                  key={item.id}
+                  className={`rounded-xl border border-[#E7E2DA] border-l-[3px] px-3 py-3 transition-colors ${
+                    item.status === 'archived'
+                      ? 'border-l-slate-300 bg-slate-50/70 opacity-85'
+                      : item.is_pinned
+                        ? 'border-l-parish-gold bg-parish-gold-soft/20'
+                        : 'border-l-parish-navy/40 bg-[#FAF8F5]/75'
+                  }`}
+                >
+                  {/* Top Badge + Date Meta Row */}
+                  <div className="flex flex-wrap items-center justify-between gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span
+                        className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wide ${categoryClass}`}
+                      >
+                        {badge}
+                      </span>
+                      <span
+                        className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                          item.status === 'published'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {item.status}
+                      </span>
+                      {item.is_pinned && (
+                        <span
+                          role="img"
+                          aria-label="Pinned notice"
+                          title="Pinned notice"
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-parish-gold/40 bg-parish-gold-soft text-parish-gold"
+                        >
+                          <Pin className="h-3 w-3 fill-current" aria-hidden="true" />
+                        </span>
+                      )}
+                    </div>
+                    <span className="whitespace-nowrap text-[11px] font-medium text-[#526071]">
+                      {dateDisplay}
+                      {item.sign_off ? ` • ${item.sign_off}` : ''}
+                    </span>
+                  </div>
+
+                  {/* Full-width Headline + 2-Line Summary */}
+                  <div className="mt-2">
+                    <h4 className="text-sm font-bold leading-snug text-[#1E293B]">
+                      {item.title}
+                    </h4>
+                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#526071]">
+                      {item.summary_preview || item.description}
+                    </p>
+                  </div>
+
+                  {/* Clean Action Toolbar */}
+                  <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-[#E7E2DA]/80 pt-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePin(item)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1 text-xs font-semibold text-[#1E3A5F] hover:bg-slate-50"
+                      >
+                        {item.is_pinned ? (
+                          <PinOff className="h-3.5 w-3.5" />
+                        ) : (
+                          <Pin className="h-3.5 w-3.5" />
+                        )}
+                        {item.is_pinned ? 'Unpin' : 'Pin'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startEditing(item)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1 text-xs font-semibold text-[#1E3A5F] hover:bg-slate-50"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStatus(item)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1 text-xs font-semibold text-[#526071] hover:bg-slate-50"
+                      >
+                        {item.status === 'published' ? (
+                          <>
+                            <Archive className="h-3.5 w-3.5" />
+                            Archive
+                          </>
+                        ) : (
+                          <>
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            Republish
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(item.id)}
+                      aria-label={`Delete ${item.title}`}
+                      title="Delete notice permanently"
+                      className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span className="sm:hidden">Delete</span>
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </div>
