@@ -237,6 +237,7 @@ export interface ReimbursementClaim {
 
 export type SpecialNoticeCategory =
   | 'Vicar Note'
+  | 'Liturgy'
   | 'Sunday Liturgy'
   | 'Media & Highlights'
   | 'Youth & Events'

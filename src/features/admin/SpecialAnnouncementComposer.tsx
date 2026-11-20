@@ -42,11 +42,50 @@ interface SpecialAnnouncementComposerProps {
 
 const NOTICE_CATEGORIES: SpecialNoticeCategory[] = [
   'Vicar Note',
+  'Liturgy',
   'Sunday Liturgy',
   'Media & Highlights',
   'Youth & Events',
   'Urgent',
 ];
+
+const DEFAULT_EVENT_TIME = '19:00'; // 7:00 PM
+
+function getTodayLocalIso(): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatEventDateTimeLabel(dateIso: string, time24: string): string {
+  if (!dateIso && !time24) return '';
+  let datePart = '';
+  if (dateIso) {
+    const [y, m, d] = dateIso.split('-').map(Number);
+    if (y && m && d) {
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      datePart = dt.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        timeZone: 'UTC',
+      });
+    }
+  }
+  let timePart = '';
+  if (time24) {
+    const [hhRaw, mmRaw] = time24.split(':').map(Number);
+    if (Number.isFinite(hhRaw) && Number.isFinite(mmRaw)) {
+      const period = hhRaw >= 12 ? 'PM' : 'AM';
+      const h12 = hhRaw % 12 || 12;
+      timePart = `${h12}:${String(mmRaw).padStart(2, '0')} ${period}`;
+    }
+  }
+  if (datePart && timePart) return `${datePart} at ${timePart}`;
+  return datePart || timePart;
+}
 
 const SAMPLE_TEMPLATES = [
   {
@@ -116,7 +155,11 @@ export function SpecialAnnouncementComposer({
     locations: [],
   });
   const [description, setDescription] = useState('');
-  const [eventDateLabel, setEventDateLabel] = useState('');
+  const [eventDate, setEventDate] = useState(() => getTodayLocalIso());
+  const [eventTime, setEventTime] = useState(DEFAULT_EVENT_TIME);
+  const [eventDateLabel, setEventDateLabel] = useState(() =>
+    formatEventDateTimeLabel(getTodayLocalIso(), DEFAULT_EVENT_TIME)
+  );
   const [locationLabel, setLocationLabel] = useState('');
   const [mapsUrl, setMapsUrl] = useState('');
   const [webUrl, setWebUrl] = useState('');
@@ -125,7 +168,7 @@ export function SpecialAnnouncementComposer({
   const [flyerStoragePath, setFlyerStoragePath] = useState('');
   const [flyerMimeType, setFlyerMimeType] = useState('');
   const [flyerNote, setFlyerNote] = useState<string | null>(null);
-  const [isPinned, setIsPinned] = useState(true);
+  const [isPinned, setIsPinned] = useState(false);
   // Default unchecked to prevent accidental notifications on new Special Notices
   const [sendPush, setSendPush] = useState(false);
 
@@ -165,7 +208,9 @@ export function SpecialAnnouncementComposer({
     setSignOff(parsed.signOff);
     setStructuredBlocks(parsed.structuredBlocks);
     setDescription(parsed.description);
-    setEventDateLabel(parsed.eventDateLabel);
+    if (parsed.eventDateLabel) {
+      setEventDateLabel(parsed.eventDateLabel);
+    }
     setLocationLabel(parsed.locationLabel);
     setMapsUrl(parsed.mapsUrl);
     setWebUrl(parsed.webUrl);
@@ -237,7 +282,10 @@ export function SpecialAnnouncementComposer({
       locations: [],
     });
     setDescription('');
-    setEventDateLabel('');
+    const todayIso = getTodayLocalIso();
+    setEventDate(todayIso);
+    setEventTime(DEFAULT_EVENT_TIME);
+    setEventDateLabel(formatEventDateTimeLabel(todayIso, DEFAULT_EVENT_TIME));
     setLocationLabel('');
     setMapsUrl('');
     setWebUrl('');
@@ -246,13 +294,15 @@ export function SpecialAnnouncementComposer({
     setFlyerStoragePath('');
     setFlyerMimeType('');
     setFlyerNote(null);
-    setIsPinned(true);
+    setIsPinned(false);
     setSendPush(false);
   };
 
   const startEditing = (item: SpecialAnnouncement) => {
     setEditingId(item.id);
     setSendPush(false);
+    setEventDate('');
+    setEventTime('');
     setRawPaste(item.raw_message || item.description || '');
     setTitle(item.title);
     setCategoryBadge(item.category_badge ?? 'Vicar Note');
@@ -611,13 +661,57 @@ export function SpecialAnnouncementComposer({
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-semibold text-[#526071]">Event Date / Time Chip</label>
+              <div className="flex items-center justify-between gap-2">
+                <label className="block text-xs font-semibold text-[#526071]">
+                  Event Date &amp; Time (defaults Today, 7:00 PM)
+                </label>
+                {eventDateLabel && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEventDate('');
+                      setEventTime('');
+                      setEventDateLabel('');
+                    }}
+                    className="text-[11px] font-semibold text-rose-700 hover:underline"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="date"
+                  aria-label="Event Date"
+                  value={eventDate}
+                  onChange={(e) => {
+                    const nextDate = e.target.value;
+                    setEventDate(nextDate);
+                    const activeTime = eventTime || (nextDate ? DEFAULT_EVENT_TIME : '');
+                    if (nextDate && !eventTime) setEventTime(DEFAULT_EVENT_TIME);
+                    setEventDateLabel(formatEventDateTimeLabel(nextDate, activeTime));
+                  }}
+                  className="w-full rounded-lg border border-[#E7E2DA] px-2.5 py-2 text-xs"
+                />
+                <input
+                  type="time"
+                  aria-label="Event Time"
+                  value={eventTime}
+                  onChange={(e) => {
+                    const nextTime = e.target.value;
+                    setEventTime(nextTime);
+                    setEventDateLabel(formatEventDateTimeLabel(eventDate, nextTime));
+                  }}
+                  className="w-full rounded-lg border border-[#E7E2DA] px-2.5 py-2 text-xs"
+                />
+              </div>
               <input
                 type="text"
+                aria-label="Event Date / Time Label Preview"
                 value={eventDateLabel}
                 onChange={(e) => setEventDateLabel(e.target.value)}
-                placeholder="Sunday, May 24"
-                className="mt-1 w-full rounded-lg border border-[#E7E2DA] px-3 py-2 text-sm"
+                placeholder="Optional display text (e.g., Thu, Nov 19 at 7:00 PM)"
+                className="mt-1.5 w-full rounded-lg border border-[#E7E2DA] bg-[#FAF8F5] px-3 py-1.5 text-xs text-[#1E293B]"
               />
             </div>
             <div>
@@ -739,7 +833,7 @@ export function SpecialAnnouncementComposer({
                   ? 'border-rose-200 bg-rose-50 text-rose-700'
                   : badge === 'Media & Highlights'
                     ? 'border-sky-200 bg-sky-50 text-sky-700'
-                    : badge === 'Sunday Liturgy'
+                    : badge === 'Sunday Liturgy' || badge === 'Liturgy'
                       ? 'border-parish-navy/25 bg-parish-navy/8 text-parish-navy'
                       : badge === 'Youth & Events'
                         ? 'border-amber-200 bg-amber-50 text-amber-800'
