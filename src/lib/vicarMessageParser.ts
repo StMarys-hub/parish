@@ -6,6 +6,13 @@ import {
   SpecialNoticeStructuredBlocks,
 } from '../types/parish';
 import { normalizePastedUrl, sanitizeActionUrl, sanitizePlainText } from './sanitize';
+import {
+  cleanAnnouncementTitle,
+  cleanDescriptionText,
+  cleanMultilineWhitespace,
+  stripFormattingMarkers,
+  stripLeadingBullet,
+} from './textFormat';
 
 export interface ParsedVicarMessage {
   title: string;
@@ -166,10 +173,10 @@ function deriveSmartTitle(params: {
   eventDateLabel: string;
 }): string {
   if (params.explicitTitle) {
-    return params.explicitTitle.slice(0, 120);
+    return cleanAnnouncementTitle(params.explicitTitle).slice(0, 120);
   }
   for (const p of params.paragraphs) {
-    const candidate = cleanLabelPunctuation(stripUrls(p));
+    const candidate = cleanAnnouncementTitle(cleanLabelPunctuation(stripUrls(p)));
     if (
       candidate.length >= 4 &&
       candidate.length <= 95 &&
@@ -226,7 +233,8 @@ function buildSummaryPreview(params: {
     parts.push(params.locations[0].label);
   }
 
-  const joined = parts.join(' ').replace(/\s+/g, ' ').trim() || params.title;
+  const joined =
+    stripFormattingMarkers(parts.join(' ').replace(/\s+/g, ' ').trim()) || params.title;
   return joined.length > 140 ? `${joined.slice(0, 137).trimEnd()}...` : joined;
 }
 
@@ -243,7 +251,7 @@ function buildSummaryPreview(params: {
  * - Sign-off attribution (default "Rajeev Achan")
  */
 export function parseVicarMessage(rawText: string): ParsedVicarMessage {
-  const cleanedRaw = sanitizePlainText(rawText).replace(/\r\n/g, '\n').trim();
+  const cleanedRaw = cleanMultilineWhitespace(sanitizePlainText(rawText));
   if (!cleanedRaw) {
     return {
       title: '',
@@ -262,7 +270,7 @@ export function parseVicarMessage(rawText: string): ParsedVicarMessage {
 
   const rawLines = cleanedRaw
     .split('\n')
-    .map((line) => line.replace(/^[*•\-–]+\s*/, '').trim())
+    .map((line) => cleanDescriptionText(stripLeadingBullet(line)))
     .filter(Boolean);
 
   let explicitTitle = '';

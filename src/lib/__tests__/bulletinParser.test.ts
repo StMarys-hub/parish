@@ -88,4 +88,19 @@ describe('parseRawBulletin', () => {
     const ccdCard = parsed.announcements.find((a) => a.title.includes('CCD Day'));
     expect(ccdCard?.actions[0]?.kind).toBe('drive');
   });
+
+  it('cleanses unwanted bullets, invisible spaces, and repeated spaces from titles while keeping description bold/highlight markers', () => {
+    const messy = `Announcements
+▪\u00A0  1.  **Choir   Practice**:   Please attend **Thursday at 7:00 PM** at ==Main Church== .
+➤   •  Youth   Retreat:   Bring   your  ==signed form==  by Friday.`;
+
+    const parsed = parseRawBulletin(messy);
+    expect(parsed.announcements).toHaveLength(2);
+    expect(parsed.announcements[0].title).toBe('Choir Practice');
+    expect(parsed.announcements[0].body).toBe(
+      'Please attend **Thursday at 7:00 PM** at ==Main Church==.'
+    );
+    expect(parsed.announcements[1].title).toBe('Youth Retreat');
+    expect(parsed.announcements[1].body).toBe('Bring your ==signed form== by Friday.');
+  });
 });

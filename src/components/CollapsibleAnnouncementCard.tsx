@@ -17,6 +17,7 @@ import {
   Users,
 } from 'lucide-react';
 import { AttentionBadgesResult } from '../lib/announcementSignals';
+import { stripFormattingMarkers } from '../lib/textFormat';
 import { ReactionSummary, ReactionTargetType } from '../types/parish';
 import { ReactionButton } from './ReactionButton';
 import { SwipeableAnnouncementCard } from './SwipeableAnnouncementCard';
@@ -285,7 +286,7 @@ export function CollapsibleAnnouncementCard({
                   {dateTimeLabel}
                 </span>
               )}
-              <span className="min-w-0 flex-1 truncate">{previewText}</span>
+              <span className="min-w-0 flex-1 truncate">{stripFormattingMarkers(previewText)}</span>
               <span className="inline-flex shrink-0 items-center gap-2 text-[11px] font-medium text-parish-muted">
                 {badges?.hasFlyer && (
                   <span className="inline-flex items-center gap-0.5" title="Has Flyer attachment">

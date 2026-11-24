@@ -7,6 +7,13 @@ import {
   DailyScheduleService,
 } from '../types/parish';
 import { sanitizeActionUrl, sanitizePlainText } from './sanitize';
+import {
+  cleanAnnouncementTitle,
+  cleanDescriptionText,
+  cleanMultilineWhitespace,
+  LEADING_BULLET_RE,
+  stripLeadingBullet,
+} from './textFormat';
 
 export interface ParsedBulletinDraft {
   weekStart?: string;
@@ -35,7 +42,7 @@ function makeId(prefix: string, idx: number): string {
  * Normalizes PDF/Word/WhatsApp line breaks and broken URLs (e.g. "https: //..." or "? \n usp=...").
  */
 export function normalizeRawBulletinText(raw: string): string {
-  let text = raw.replace(/\r\n?/g, '\n');
+  let text = cleanMultilineWhitespace(raw);
 
   // Fix spaces inserted after protocol ("https: //docs.google.com")
   text = text.replace(/(https?):\s+\/\//gi, '$1://');
@@ -51,7 +58,7 @@ export function normalizeRawBulletinText(raw: string): string {
     const prevEndsWithBrokenUrl =
       /https?:\/\/\S*[?&=/_-]$/i.test(prev) &&
       trimmed.length > 0 &&
-      !/^[•*\-]\s/.test(trimmed) &&
+      !LEADING_BULLET_RE.test(trimmed) &&
       !/^[A-Z][A-Za-z0-9\s’'–-]{2,55}:\s/.test(trimmed);
 
     const isOrphanUrlSuffix =
@@ -147,7 +154,7 @@ function parseDailyScheduleBlock(lines: string[]): DailyScheduleEntry[] {
 
   const pushServiceLine = (rawItem: string) => {
     if (!current) return;
-    const clean = sanitizePlainText(rawItem.replace(/^[•*\-]\s*/, ''));
+    const clean = sanitizePlainText(stripLeadingBullet(rawItem));
     if (!clean || /^n\/?a$/i.test(clean)) {
       if (current.items.length === 0) {
         current.items.push({ time: '', title: 'No scheduled church services' });
@@ -189,7 +196,7 @@ function parseDailyScheduleBlock(lines: string[]): DailyScheduleEntry[] {
       let feastNote: string | null = null;
 
       // Check if remainder starts with a bullet or a feast note
-      if (remainder.startsWith('•') || remainder.startsWith('*')) {
+      if (LEADING_BULLET_RE.test(remainder)) {
         current = { date: isoDate, dayLabel, feastNote: null, items: [] };
         pushServiceLine(remainder);
       } else {
@@ -267,7 +274,7 @@ export function parseRawBulletin(rawText: string): ParsedBulletinDraft {
         scheduleLines.push(trimmed);
         continue;
       }
-      if (/^[•*\-]\s+/.test(trimmed) || /^[A-Z][A-Za-z0-9\s’'–-]{2,55}:\s+/.test(trimmed)) {
+      if (LEADING_BULLET_RE.test(trimmed) || /^[A-Z][A-Za-z0-9\s’'–-]{2,55}:\s+/.test(trimmed)) {
         mode = 'announcements';
         announcementLines.push(trimmed);
         continue;
@@ -287,13 +294,14 @@ export function parseRawBulletin(rawText: string): ParsedBulletinDraft {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    const isNewBullet = /^[•*\-]\s+/.test(trimmed);
-    const isNewTitleColon = /^[A-Z][A-Za-z0-9\s.’'–()-]{2,60}:\s+/.test(trimmed);
+    const isNewBullet = LEADING_BULLET_RE.test(trimmed);
+    const cleanedLine = stripLeadingBullet(trimmed);
+    const isNewTitleColon = /^[A-Z][A-Za-z0-9\s.’'–()-]{2,60}:\s+/.test(cleanedLine);
 
     if (isNewBullet || isNewTitleColon || rawItems.length === 0) {
-      rawItems.push(trimmed.replace(/^[•*\-]\s+/, ''));
+      rawItems.push(cleanedLine);
     } else {
-      rawItems[rawItems.length - 1] = `${rawItems[rawItems.length - 1]} ${trimmed}`;
+      rawItems[rawItems.length - 1] = `${rawItems[rawItems.length - 1]} ${cleanedLine}`;
     }
   }
 
@@ -347,8 +355,8 @@ export function parseRawBulletin(rawText: string): ParsedBulletinDraft {
     cardBody = cardBody.replace(/\s*(?:use (?:the |this )?link(?: below)?[^:]*:|\bhere is the link[^:]*:)\s*$/i, '.').trim();
     cardBody = cardBody.replace(/\.\.+$/, '.');
 
-    const cleanTitle = sanitizePlainText(cardTitle);
-    const cleanBody = sanitizePlainText(cardBody);
+    const cleanTitle = cleanAnnouncementTitle(sanitizePlainText(cardTitle));
+    const cleanBody = cleanDescriptionText(sanitizePlainText(cardBody));
     const category = classifyAnnouncement(cleanTitle, cleanBody);
     const dateTimeLabel = extractDateTimeLabel(`${cleanTitle} ${cleanBody}`);
     const locationLabel = extractLocationLabel(cleanBody);

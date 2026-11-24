@@ -17,6 +17,7 @@ import {
 import { CollapsibleAnnouncementCard } from '../../components/CollapsibleAnnouncementCard';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { FlyerLightbox } from '../../components/FlyerLightbox';
+import { FormattedText } from '../../components/FormattedText';
 import { ScrollablePillBar } from '../../components/ScrollablePillBar';
 import { PHASE_FLAGS } from '../../config/features';
 import { computeAttentionBadges } from '../../lib/announcementSignals';
@@ -581,7 +582,7 @@ export function BulletinView({
                 )}
 
                 <p className="whitespace-pre-line text-base leading-[1.6] text-parish-ink">
-                  {card.body}
+                  <FormattedText text={card.body} />
                 </p>
 
                 {card.actions.length > 0 && (
@@ -698,7 +699,7 @@ export function BulletinView({
                     )}
 
                     <p className="whitespace-pre-line text-base leading-[1.6] text-parish-ink">
-                      {card.body}
+                      <FormattedText text={card.body} />
                     </p>
 
                     {card.actions.length > 0 && (

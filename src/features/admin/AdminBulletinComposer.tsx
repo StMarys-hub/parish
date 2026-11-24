@@ -19,10 +19,12 @@ import {
   Wand2,
 } from 'lucide-react';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
+import { FormattedTextarea } from '../../components/FormattedTextarea';
 import { HelpGuideModal } from '../../components/HelpGuideModal';
 import { BulletinView } from '../bulletin/BulletinView';
 import { parseRawBulletin } from '../../lib/bulletinParser';
 import { sanitizeActionUrl, sanitizePlainText } from '../../lib/sanitize';
+import { cleanAnnouncementTitle, cleanDescriptionText } from '../../lib/textFormat';
 import {
   getActivePushSubscriberCount,
   publishBulletinAndNotify,
@@ -338,8 +340,8 @@ export function AdminBulletinComposer({
     const sanitizedAnnouncements = announcements.map((card, i) => ({
       ...card,
       order: i + 1,
-      title: sanitizePlainText(card.title),
-      body: sanitizePlainText(card.body),
+      title: cleanAnnouncementTitle(sanitizePlainText(card.title)),
+      body: cleanDescriptionText(sanitizePlainText(card.body)),
       dateTimeLabel: card.dateTimeLabel ? sanitizePlainText(card.dateTimeLabel) : null,
       locationLabel: card.locationLabel ? sanitizePlainText(card.locationLabel) : null,
       actions: card.actions
@@ -763,12 +765,12 @@ export function AdminBulletinComposer({
                   />
                 </div>
 
-                <textarea
+                <FormattedTextarea
                   rows={3}
                   value={card.body}
-                  onChange={(e) => updateCard(idx, { body: e.target.value })}
-                  placeholder="Announcement details..."
-                  className="w-full rounded-lg border border-[#E7E2DA] px-3 py-2 text-sm"
+                  onChange={(nextBody) => updateCard(idx, { body: nextBody })}
+                  placeholder="Announcement details... (select text to Bold or Highlight)"
+                  ariaLabel={`Description for ${card.title || `item ${idx + 1}`}`}
                 />
 
                 {/* Action Links & Flyer Upload */}

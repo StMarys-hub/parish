@@ -16,11 +16,13 @@ import {
   Trash2,
   Wand2,
 } from 'lucide-react';
+import { FormattedTextarea } from '../../components/FormattedTextarea';
 import { HelpGuideModal } from '../../components/HelpGuideModal';
 import { SpecialNoticeBody } from '../../components/SpecialNoticeBody';
 import { UnreadDotBadge } from '../../components/UnreadDotBadge';
 import { parseVicarMessage } from '../../lib/vicarMessageParser';
 import { sanitizeActionUrl, sanitizePlainText } from '../../lib/sanitize';
+import { cleanAnnouncementTitle, stripFormattingMarkers } from '../../lib/textFormat';
 import {
   deleteSpecialAnnouncement,
   fetchAllSpecialAnnouncementsForAdmin,
@@ -361,11 +363,15 @@ export function SpecialAnnouncementComposer({
       };
 
       const isNewPublish = !editingId;
+      const cleanedTitle = cleanAnnouncementTitle(title) || title.trim();
+      const cleanedSummary = stripFormattingMarkers(
+        summaryPreview.trim() || description.slice(0, 140)
+      );
       const saved = await upsertSpecialAnnouncement({
         id: editingId,
-        title: title.trim(),
+        title: cleanedTitle,
         category_badge: categoryBadge,
-        summary_preview: summaryPreview.trim() || description.slice(0, 140),
+        summary_preview: cleanedSummary,
         raw_message: rawPaste.trim() || description.trim(),
         structured_blocks: finalBlocks,
         sign_off: signOff.trim() || 'Rajeev Achan',
@@ -523,12 +529,13 @@ export function SpecialAnnouncementComposer({
               ))}
             </div>
           </div>
-          <textarea
+          <FormattedTextarea
             rows={5}
             value={rawPaste}
-            onChange={(e) => handleRawPasteChange(e.target.value)}
+            onChange={handleRawPasteChange}
             placeholder="Paste Fr. Rajeev's message directly here — schedules, Mission locations, Drive photo/video links, greetings & sign-offs are parsed automatically..."
-            className="w-full rounded-lg border border-[#E7E2DA] bg-white p-3 text-xs leading-relaxed text-[#1E293B] focus:border-[#1E3A5F] focus:outline-none"
+            className="text-xs leading-relaxed"
+            ariaLabel="Paste Raw Special Notice Message"
           />
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
             <span className="text-[11px] text-[#526071]">

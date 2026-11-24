@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { sanitizeActionUrl } from '../lib/sanitize';
 import { NoticeLinkItem, SpecialAnnouncement } from '../types/parish';
+import { FormattedText } from './FormattedText';
 
 interface SpecialNoticeBodyProps {
   notice: Pick<
@@ -152,7 +153,7 @@ export function SpecialNoticeBody({ notice, onOpenFlyer }: SpecialNoticeBodyProp
         <div className="space-y-2">
           {paragraphs.map((p, idx) => (
             <p key={idx} className="whitespace-pre-line">
-              {p}
+              <FormattedText text={p} />
             </p>
           ))}
         </div>
