@@ -189,102 +189,170 @@ export function SpecialAnnouncementsFeed({
     );
   };
 
+  const allReadMode = unreadItems.length === 0 && readItems.length > 0;
+
   return (
-    <section className="space-y-2.5" aria-label="Special Notices from Parish Vicar">
-      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-        <button
-          type="button"
-          aria-expanded={sectionExpanded}
-          onClick={() => {
-            onCardInteract?.();
-            setSectionExpanded((prev) => !prev);
-          }}
-          className="group flex w-full min-w-0 items-center gap-2 rounded-xl border-l-[3px] border-l-parish-gold bg-parish-gold-soft/85 px-2.5 py-2 text-left shadow-2xs transition-all hover:bg-parish-gold-soft active:scale-[0.99] sm:flex-1"
-        >
-          <div className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-lg bg-white/90 text-parish-gold-ink shadow-2xs">
-            <Megaphone className="h-3.5 w-3.5" />
-          </div>
-          <div className="flex min-w-0 flex-1 items-center gap-1.5">
-            <h2 className="truncate text-[13px] font-bold tracking-tight text-parish-navy sm:text-sm">
-              Special Vicar &amp; Parish Notices
-            </h2>
-            {unreadItems.length > 0 ? (
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+    <section className="space-y-2" aria-label="Special Notices from Parish Vicar">
+      {allReadMode ? (
+        <>
+          {/* Single sleek, unmistakably tappable bar when all Special Notices are already read */}
+          <button
+            type="button"
+            aria-expanded={showReadSection}
+            onClick={() => {
+              onCardInteract?.();
+              setSectionExpanded(true);
+              setShowReadSection((prev) => !prev);
+            }}
+            className="group flex w-full min-w-0 items-center gap-2 rounded-xl border border-parish-gold/40 border-l-[3px] border-l-parish-gold bg-parish-gold-soft/70 px-2.5 py-2 text-left shadow-2xs transition-all hover:bg-parish-gold-soft active:scale-[0.99]"
+          >
+            <div className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-lg bg-white/95 text-parish-gold-ink shadow-2xs">
+              <Megaphone className="h-3.5 w-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-[13px] font-bold tracking-tight text-parish-navy sm:text-sm">
+                Special Vicar &amp; Parish Notices
+              </h2>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-parish-navy shadow-2xs ring-1 ring-parish-gold/35 transition-colors group-hover:bg-parish-navy group-hover:text-white">
+              <CheckCircle2 className="h-3 w-3 text-emerald-600 group-hover:text-emerald-300" />
+              <span>{showReadSection ? 'Hide' : `View (${readItems.length})`}</span>
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                  showReadSection ? 'rotate-180' : ''
+                }`}
+                aria-hidden="true"
+              />
+            </span>
+          </button>
+
+          {showReadSection && (
+            <div className="space-y-2.5 pt-0.5">
+              <div className="flex items-center justify-between px-1">
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-parish-muted">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  Read Notices ({readItems.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={handleToggleAll}
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-parish-navy hover:bg-parish-navy/8"
+                >
+                  {areAllExpanded ? (
+                    <>
+                      <ChevronsDownUp className="h-3.5 w-3.5" />
+                      Collapse All
+                    </>
+                  ) : (
+                    <>
+                      <ChevronsUpDown className="h-3.5 w-3.5" />
+                      Expand All
+                    </>
+                  )}
+                </button>
+              </div>
+              <div className="space-y-2.5">{readItems.map((item) => renderSpecialCard(item))}</div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Active Unread Special Notices Header */}
+          <button
+            type="button"
+            aria-expanded={sectionExpanded}
+            onClick={() => {
+              onCardInteract?.();
+              setSectionExpanded((prev) => !prev);
+            }}
+            className="group flex w-full min-w-0 items-center gap-2 rounded-xl border-l-[3px] border-l-parish-gold bg-parish-gold-soft/85 px-2.5 py-2 text-left shadow-2xs transition-all hover:bg-parish-gold-soft active:scale-[0.99]"
+          >
+            <div className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-lg bg-white/95 text-parish-gold-ink shadow-2xs">
+              <Megaphone className="h-3.5 w-3.5" />
+            </div>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <h2 className="truncate text-[13px] font-bold tracking-tight text-parish-navy sm:text-sm">
+                Special Vicar &amp; Parish Notices
+              </h2>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
                 <span className="h-[7px] w-[7px] rounded-full bg-red-500 ring-1 ring-white" />
                 {unreadItems.length} New
               </span>
-            ) : (
-              <span className="shrink-0 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-parish-muted ring-1 ring-parish-border/70">
-                {items.length}
-              </span>
-            )}
-          </div>
-          <ChevronDown
-            className={`ml-auto h-4 w-4 shrink-0 text-parish-navy transition-transform duration-200 ${
-              sectionExpanded ? 'rotate-180' : ''
-            }`}
-            aria-hidden="true"
-          />
-        </button>
+            </div>
+            <ChevronDown
+              className={`ml-auto h-4 w-4 shrink-0 text-parish-navy transition-transform duration-200 ${
+                sectionExpanded ? 'rotate-180' : ''
+              }`}
+              aria-hidden="true"
+            />
+          </button>
 
-        {sectionExpanded && (
-          <div className="flex justify-end sm:shrink-0">
-            <button
-              type="button"
-              onClick={handleToggleAll}
-              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-white px-2.5 py-1 text-[11px] font-semibold text-parish-navy hover:bg-parish-canvas"
-            >
-              {areAllExpanded ? (
-                <>
-                  <ChevronsDownUp className="h-3.5 w-3.5" />
-                  Collapse All
-                </>
-              ) : (
-                <>
-                  <ChevronsUpDown className="h-3.5 w-3.5" />
-                  Expand All
-                </>
-              )}
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="parish-accordion-panel" data-open={sectionExpanded}>
-        <div className="parish-accordion-inner">
-          <div className="space-y-3 pt-3">
-            {/* Priority Unread / Pinned Notices */}
-            {unreadItems.length > 0 && (
-              <div className="space-y-2.5">{unreadItems.map((item) => renderSpecialCard(item))}</div>
-            )}
-
-            {/* Read Notices Archive Tray */}
-            {readItems.length > 0 && (
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setShowReadSection((prev) => !prev)}
-                  className="flex w-full items-center justify-between rounded-xl border border-dashed border-parish-border bg-parish-canvas/70 px-3.5 py-2 text-xs font-semibold text-parish-muted hover:text-parish-ink"
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    Read Notices ({readItems.length})
+          <div className="parish-accordion-panel" data-open={sectionExpanded}>
+            <div className="parish-accordion-inner">
+              <div className="space-y-2.5 pt-1">
+                {/* Inline compact utility row (no floating orphan pill) */}
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] font-medium text-parish-muted">
+                    {unreadItems.length} unread {unreadItems.length === 1 ? 'notice' : 'notices'}
                   </span>
-                  <ChevronDown
-                    className={`h-4 w-4 transition-transform duration-200 ${
-                      showReadSection ? 'rotate-180' : ''
-                    }`}
-                  />
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleToggleAll}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-parish-navy hover:bg-parish-navy/8"
+                  >
+                    {areAllExpanded ? (
+                      <>
+                        <ChevronsDownUp className="h-3.5 w-3.5" />
+                        Collapse All
+                      </>
+                    ) : (
+                      <>
+                        <ChevronsUpDown className="h-3.5 w-3.5" />
+                        Expand All
+                      </>
+                    )}
+                  </button>
+                </div>
 
-                {showReadSection && (
-                  <div className="space-y-2.5">{readItems.map((item) => renderSpecialCard(item))}</div>
+                {/* Priority Unread / Pinned Notices */}
+                <div className="space-y-2.5">{unreadItems.map((item) => renderSpecialCard(item))}</div>
+
+                {/* Clearly Tappable Read Notices Archive Drawer */}
+                {readItems.length > 0 && (
+                  <div className="space-y-2 pt-0.5">
+                    <button
+                      type="button"
+                      aria-expanded={showReadSection}
+                      onClick={() => {
+                        onCardInteract?.();
+                        setShowReadSection((prev) => !prev);
+                      }}
+                      className="group flex w-full items-center justify-between rounded-xl border border-parish-border bg-white px-3 py-2 text-xs font-semibold text-parish-ink shadow-2xs transition-colors hover:border-parish-navy/35 hover:bg-parish-canvas/50"
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>Read Notices ({readItems.length})</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-parish-canvas px-2.5 py-0.5 text-[11px] font-bold text-parish-navy ring-1 ring-parish-border/80 group-hover:bg-parish-navy group-hover:text-white">
+                        {showReadSection ? 'Hide' : 'View'}
+                        <ChevronDown
+                          className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                            showReadSection ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </span>
+                    </button>
+
+                    {showReadSection && (
+                      <div className="space-y-2.5">{readItems.map((item) => renderSpecialCard(item))}</div>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
 
       {lightbox && (
         <FlyerLightbox

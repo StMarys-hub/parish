@@ -939,52 +939,61 @@ export function BulletinView({
           className="scroll-mt-20 space-y-2"
           aria-label="Weekly Announcements"
         >
-          {/* Collapsible Weekly Announcements Master Header (Full-width single row on mobile; inline actions on desktop) */}
-          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-            <button
-              type="button"
-              aria-expanded={weeklyExpanded}
-              onClick={() => {
-                if (activeSearchHit) {
-                  dismissSearchSpotlight({ resetCategory: false, scrollToWeekly: false });
-                }
-                setWeeklyExpanded((v) => !v);
-              }}
-              className="group flex w-full min-w-0 items-center gap-2 rounded-xl bg-white/85 px-2.5 py-2 text-left shadow-2xs ring-1 ring-parish-border/70 transition-all hover:bg-white active:scale-[0.99] sm:flex-1"
-            >
-              <Calendar className="h-4 w-4 shrink-0 text-parish-navy" aria-hidden="true" />
-              <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                <h2 className="truncate text-[13px] font-bold tracking-tight text-parish-ink group-hover:text-parish-navy sm:text-sm">
-                  Weekly Announcements
-                </h2>
-                <span className="shrink-0 text-[11px] font-medium text-parish-muted">
-                  · {formatNumericMonthDay(activeBulletin.week_start)}–
-                  {formatNumericMonthDay(activeBulletin.week_end)}
-                </span>
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-parish-canvas px-2 py-0.5 text-[10px] font-semibold text-parish-navy">
-                  {visibleAnnouncements.length}
-                  {PHASE_FLAGS.unreadIndicators && unreadVisibleKeys.length > 0 && (
-                    <span
-                      aria-label={`${unreadVisibleKeys.length} unread`}
-                      className="h-[6px] w-[6px] rounded-full bg-red-500"
-                    />
-                  )}
-                </span>
-              </div>
-              <ChevronDown
-                className={`ml-auto h-4 w-4 shrink-0 text-parish-navy transition-transform duration-200 ${
-                  weeklyExpanded ? 'rotate-180' : ''
-                }`}
-                aria-hidden="true"
-              />
-            </button>
+          {/* Clean Editorial Section Header (no heavy card border competing with announcement cards) */}
+          <button
+            type="button"
+            aria-expanded={weeklyExpanded}
+            onClick={() => {
+              if (activeSearchHit) {
+                dismissSearchSpotlight({ resetCategory: false, scrollToWeekly: false });
+              }
+              setWeeklyExpanded((v) => !v);
+            }}
+            className="group flex w-full min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 text-left transition-colors hover:bg-parish-navy/[0.04] active:scale-[0.99]"
+          >
+            <Calendar className="h-4 w-4 shrink-0 text-parish-navy" aria-hidden="true" />
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <h2 className="truncate text-[14px] font-bold tracking-tight text-parish-navy sm:text-[15px]">
+                Weekly Announcements
+              </h2>
+              <span className="shrink-0 text-[11px] font-medium text-parish-muted">
+                · {formatNumericMonthDay(activeBulletin.week_start)}–
+                {formatNumericMonthDay(activeBulletin.week_end)}
+              </span>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-parish-navy/8 px-2 py-0.5 text-[10px] font-bold text-parish-navy">
+                {visibleAnnouncements.length}
+                {PHASE_FLAGS.unreadIndicators && unreadVisibleKeys.length > 0 && (
+                  <span
+                    aria-label={`${unreadVisibleKeys.length} unread`}
+                    className="h-[6px] w-[6px] rounded-full bg-red-500"
+                  />
+                )}
+              </span>
+            </div>
+            <ChevronDown
+              className={`ml-auto h-4 w-4 shrink-0 text-parish-navy transition-transform duration-200 ${
+                weeklyExpanded ? 'rotate-180' : ''
+              }`}
+              aria-hidden="true"
+            />
+          </button>
 
-            {weeklyExpanded && visibleAnnouncements.length > 0 && (
-              <div className="flex shrink-0 items-center justify-end gap-1.5">
+          <div className="parish-accordion-panel" data-open={weeklyExpanded}>
+            <div className="parish-accordion-inner">
+              <div className="space-y-2.5 pt-1">
+          {/* Compact inline utility row ONLY when unread announcements exist (all-read merges into Read bar below) */}
+          {unreadAnnouncements.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+              <span className="text-[11px] font-semibold text-parish-muted">
+                {PHASE_FLAGS.unreadIndicators && unreadVisibleKeys.length > 0
+                  ? `${unreadVisibleKeys.length} unread`
+                  : `${unreadAnnouncements.length} active`}
+              </span>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={toggleExpandAllVisible}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-white px-2.5 py-1 text-[11px] font-semibold text-parish-navy hover:bg-parish-canvas"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-parish-navy hover:bg-parish-navy/8"
                 >
                   <ChevronsUpDown className="h-3.5 w-3.5" />
                   {allVisibleExpanded ? 'Collapse All' : 'Expand All'}
@@ -993,19 +1002,15 @@ export function BulletinView({
                   <button
                     type="button"
                     onClick={() => markManyRead(unreadVisibleKeys)}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-white px-2.5 py-1 text-[11px] font-semibold text-parish-navy hover:bg-parish-canvas"
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-white px-2.5 py-0.5 text-[11px] font-semibold text-parish-navy hover:bg-parish-canvas"
                   >
                     <CheckCheck className="h-3.5 w-3.5" />
                     Mark {unreadVisibleKeys.length} Read
                   </button>
                 )}
               </div>
-            )}
-          </div>
-
-          <div className="parish-accordion-panel" data-open={weeklyExpanded}>
-            <div className="parish-accordion-inner">
-              <div className="space-y-2.5 pt-2.5">
+            </div>
+          )}
           {[
             ...unreadAnnouncements.map((card) => ({ card, inReadSection: false })),
           ].map(({ card }) => {
@@ -1123,23 +1128,39 @@ export function BulletinView({
           })}
 
           {readAnnouncements.length > 0 && (
-            <div className="space-y-2.5 pt-2">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-parish-border pt-3">
-                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-parish-muted">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-parish-navy" />
-                  <span>Read Announcements ({readAnnouncements.length})</span>
+            <div className={`space-y-2.5 ${unreadAnnouncements.length > 0 ? 'pt-2' : ''}`}>
+              <div
+                className={`flex flex-wrap items-center justify-between gap-2 px-1 ${
+                  unreadAnnouncements.length > 0 ? 'border-t border-parish-border pt-3' : ''
+                }`}
+              >
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-parish-muted">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Read ({readAnnouncements.length})</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDeferredMoveKeys(new Set());
-                    resetAllRead();
-                  }}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-parish-navy underline hover:opacity-80"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  Reset Read Status
-                </button>
+                <div className="flex items-center gap-2.5">
+                  {unreadAnnouncements.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={toggleExpandAllVisible}
+                      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-parish-navy hover:bg-parish-navy/8"
+                    >
+                      <ChevronsUpDown className="h-3.5 w-3.5" />
+                      {allVisibleExpanded ? 'Collapse All' : 'Expand All'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeferredMoveKeys(new Set());
+                      resetAllRead();
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-parish-navy hover:underline"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    Reset
+                  </button>
+                </div>
               </div>
 
               {readAnnouncements.map((card) => {
