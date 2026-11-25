@@ -13,7 +13,9 @@ import {
   Image as ImageIcon,
   MapPin,
   RotateCcw,
+  Search,
 } from 'lucide-react';
+import { CalendarActionMenu } from '../../components/CalendarActionMenu';
 import { CollapsibleAnnouncementCard } from '../../components/CollapsibleAnnouncementCard';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { FlyerLightbox } from '../../components/FlyerLightbox';
@@ -42,6 +44,7 @@ import { MinistryUpdatesView } from '../ministries/MinistryUpdatesView';
 import { PushOptInCard } from '../notifications/PushOptInCard';
 import { SpecialAnnouncementsFeed } from '../special/SpecialAnnouncementsFeed';
 import { CollectionHighlightCard } from './CollectionHighlightCard';
+import { ParishInstantSearch, SearchHit } from './ParishInstantSearch';
 
 interface BulletinViewProps {
   bulletins: WeeklyBulletin[];
@@ -98,6 +101,8 @@ export function BulletinView({
   const [deferredMoveKeys, setDeferredMoveKeys] = useState<Set<string>>(() => new Set());
   const [weeklyExpanded, setWeeklyExpanded] = useState(true);
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [lightboxFlyer, setLightboxFlyer] = useState<{
     title: string;
     url: string;
@@ -316,28 +321,46 @@ export function BulletinView({
             )}
           </div>
 
-          {bulletins.length > 1 && (
-            <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-white/90">
-              <span className="sr-only">Select archive week</span>
-              <select
-                aria-label="Bulletin week selector"
-                value={selectedWeekIndex}
-                onChange={(e) => {
-                  setSelectedWeekIndex(Number(e.target.value));
-                  setSelectedCategory('All');
-                  setExpandedKeys(new Set());
-                  setDeferredMoveKeys(new Set());
-                }}
-                className="rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-xs focus:outline-none focus:ring-2 focus:ring-white/40"
-              >
-                {bulletins.slice(0, 4).map((b, idx) => (
-                  <option key={b.id} value={idx} className="bg-slate-900 text-white">
-                    {ARCHIVE_LABELS[idx] ?? `Week ${idx + 1}`} ({formatShortDate(b.week_start)})
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setSearchOpen((prev) => !prev);
+                if (searchOpen) setSearchQuery('');
+              }}
+              aria-label="Search parish notices and schedules"
+              title="Search notices, schedules & past 4 weeks"
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${
+                searchOpen
+                  ? 'border-white/60 bg-white text-parish-navy'
+                  : 'border-white/25 bg-white/15 text-white hover:bg-white/25'
+              }`}
+            >
+              <Search className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+            {bulletins.length > 1 && (
+              <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-white/90">
+                <span className="sr-only">Select archive week</span>
+                <select
+                  aria-label="Bulletin week selector"
+                  value={selectedWeekIndex}
+                  onChange={(e) => {
+                    setSelectedWeekIndex(Number(e.target.value));
+                    setSelectedCategory('All');
+                    setExpandedKeys(new Set());
+                    setDeferredMoveKeys(new Set());
+                  }}
+                  className="rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-xs focus:outline-none focus:ring-2 focus:ring-white/40"
+                >
+                  {bulletins.slice(0, 4).map((b, idx) => (
+                    <option key={b.id} value={idx} className="bg-slate-900 text-white">
+                      {ARCHIVE_LABELS[idx] ?? `Week ${idx + 1}`} ({formatShortDate(b.week_start)})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
         </div>
 
         <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
@@ -355,6 +378,38 @@ export function BulletinView({
           )}
         </div>
       </section>
+
+      {searchOpen && (
+        <ParishInstantSearch
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          onClose={() => {
+            setSearchOpen(false);
+            setSearchQuery('');
+          }}
+          bulletins={bulletins}
+          specialAnnouncements={specialAnnouncements}
+          ministryUpdates={ministryUpdates}
+          onSelectHit={(hit: SearchHit) => {
+            setSearchOpen(false);
+            setSearchQuery('');
+            if (hit.kind === 'ministry') {
+              setSelectedCategory('Ministry');
+              return;
+            }
+            if (typeof hit.weekIndex === 'number') {
+              setSelectedWeekIndex(hit.weekIndex);
+            }
+            if (hit.kind === 'bulletin' && hit.announcementId) {
+              setSelectedCategory('All');
+              setWeeklyExpanded(true);
+              setExpandedKeys((prev) => new Set(prev).add(`bulletin:${hit.announcementId}`));
+            } else if (hit.kind === 'schedule') {
+              setScheduleExpanded(true);
+            }
+          }}
+        />
+      )}
 
       {/* Standalone Vicar / Special Announcements (Highlighted immediately below slim header) */}
       {PHASE_FLAGS.specialAnnouncements && specialAnnouncements.length > 0 && (
@@ -585,6 +640,19 @@ export function BulletinView({
                   <FormattedText text={card.body} />
                 </p>
 
+                {card.dateTimeLabel && (
+                  <div className="mt-3">
+                    <CalendarActionMenu
+                      event={{
+                        title: card.title,
+                        description: card.body,
+                        dateTimeLabel: card.dateTimeLabel,
+                        location: card.locationLabel,
+                      }}
+                    />
+                  </div>
+                )}
+
                 {card.actions.length > 0 && (
                   <div className="mt-4 flex flex-wrap gap-2">
                     {card.actions.map((action, idx) => {
@@ -701,6 +769,19 @@ export function BulletinView({
                     <p className="whitespace-pre-line text-base leading-[1.6] text-parish-ink">
                       <FormattedText text={card.body} />
                     </p>
+
+                    {card.dateTimeLabel && (
+                      <div className="mt-3">
+                        <CalendarActionMenu
+                          event={{
+                            title: card.title,
+                            description: card.body,
+                            dateTimeLabel: card.dateTimeLabel,
+                            location: card.locationLabel,
+                          }}
+                        />
+                      </div>
+                    )}
 
                     {card.actions.length > 0 && (
                       <div className="mt-4 flex flex-wrap gap-2">

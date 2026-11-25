@@ -136,6 +136,7 @@ function mapNoticeRow(raw: Record<string, unknown>): SpecialAnnouncement {
     is_pinned: Boolean(raw.is_pinned),
     status: (raw.status as 'published' | 'archived') ?? 'published',
     published_at: String(raw.published_at ?? raw.created_at ?? new Date().toISOString()),
+    scheduled_publish_at: (raw.scheduled_publish_at as string | null | undefined) ?? null,
     created_at: String(raw.created_at ?? raw.published_at ?? new Date().toISOString()),
     updated_at: String(raw.updated_at ?? raw.created_at ?? new Date().toISOString()),
   };
@@ -155,7 +156,10 @@ export async function fetchPublishedSpecialAnnouncements(): Promise<SpecialAnnou
       .limit(20);
 
     if (!primary.error) {
-      const rows = (primary.data ?? []).map((r) => mapNoticeRow(r as Record<string, unknown>));
+      const nowMs = Date.now();
+      const rows = (primary.data ?? [])
+        .map((r) => mapNoticeRow(r as Record<string, unknown>))
+        .filter((n) => !n.scheduled_publish_at || Date.parse(n.scheduled_publish_at) <= nowMs);
       writeCache(SPECIAL_CACHE_KEY, rows);
       return rows;
     }
@@ -226,6 +230,9 @@ export async function upsertSpecialAnnouncement(
     is_pinned: payload.is_pinned ?? false,
     status: payload.status ?? 'published',
     published_at: payload.published_at ?? nowIso,
+    ...(payload.scheduled_publish_at !== undefined
+      ? { scheduled_publish_at: payload.scheduled_publish_at }
+      : {}),
     updated_by: userId,
     updated_at: nowIso,
   };

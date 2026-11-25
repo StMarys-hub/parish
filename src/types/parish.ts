@@ -78,6 +78,7 @@ export interface WeeklyBulletin {
   sign_off: PastoralSignOff;
   status: 'draft' | 'published';
   published_at?: string | null;
+  scheduled_publish_at?: string | null;
   push_sent_at?: string | null;
   updated_at: string;
 }
@@ -290,6 +291,7 @@ export interface SpecialAnnouncement {
   is_pinned: boolean;
   status: 'published' | 'archived';
   published_at: string;
+  scheduled_publish_at?: string | null;
   created_at?: string;
   updated_at: string;
 }

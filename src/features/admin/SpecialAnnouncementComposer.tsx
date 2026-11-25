@@ -173,6 +173,7 @@ export function SpecialAnnouncementComposer({
   const [isPinned, setIsPinned] = useState(false);
   // Default unchecked to prevent accidental notifications on new Special Notices
   const [sendPush, setSendPush] = useState(false);
+  const [scheduledPublishLocal, setScheduledPublishLocal] = useState('');
 
   const [previewExpanded, setPreviewExpanded] = useState(true);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -298,11 +299,19 @@ export function SpecialAnnouncementComposer({
     setFlyerNote(null);
     setIsPinned(false);
     setSendPush(false);
+    setScheduledPublishLocal('');
   };
 
   const startEditing = (item: SpecialAnnouncement) => {
     setEditingId(item.id);
     setSendPush(false);
+    if (item.scheduled_publish_at && Date.parse(item.scheduled_publish_at) > Date.now()) {
+      const dt = new Date(item.scheduled_publish_at);
+      const localIso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}T${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+      setScheduledPublishLocal(localIso);
+    } else {
+      setScheduledPublishLocal('');
+    }
     setEventDate('');
     setEventTime('');
     setRawPaste(item.raw_message || item.description || '');
@@ -367,6 +376,10 @@ export function SpecialAnnouncementComposer({
       const cleanedSummary = stripFormattingMarkers(
         summaryPreview.trim() || description.slice(0, 140)
       );
+      const scheduledDate = scheduledPublishLocal ? new Date(scheduledPublishLocal) : null;
+      const isFutureSchedule = Boolean(
+        scheduledDate && Number.isFinite(scheduledDate.getTime()) && scheduledDate.getTime() > Date.now()
+      );
       const saved = await upsertSpecialAnnouncement({
         id: editingId,
         title: cleanedTitle,
@@ -386,13 +399,23 @@ export function SpecialAnnouncementComposer({
         flyer_mime_type: flyerMimeType || null,
         is_pinned: isPinned,
         status: 'published',
+        ...(isFutureSchedule && scheduledDate
+          ? { scheduled_publish_at: scheduledDate.toISOString() }
+          : {}),
       });
 
-      let successText = isNewPublish
-        ? 'Special Notice published to Parish Bulletin Board!'
-        : 'Special Notice updated cleanly.';
+      let successText = isFutureSchedule && scheduledDate
+        ? `Special Notice scheduled to go live on ${scheduledDate.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+          })}.`
+        : isNewPublish
+          ? 'Special Notice published to Parish Bulletin Board!'
+          : 'Special Notice updated cleanly.';
 
-      if (isNewPublish && sendPush) {
+      if (isNewPublish && sendPush && !isFutureSchedule) {
         try {
           const pushRes = await publishSpecialNoticePush({
             specialNoticeId: saved.id,
@@ -789,8 +812,39 @@ export function SpecialAnnouncementComposer({
             </div>
           )}
 
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E7E2DA] bg-[#FAF8F5] px-3.5 py-2">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <label htmlFor="special-schedule-publish" className="font-semibold text-[#526071]">
+                Schedule Publish (optional):
+              </label>
+              <input
+                id="special-schedule-publish"
+                type="datetime-local"
+                value={scheduledPublishLocal}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setScheduledPublishLocal(val);
+                  if (val) setSendPush(false);
+                }}
+                className="rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1 text-xs text-[#1E293B]"
+              />
+              {scheduledPublishLocal && (
+                <button
+                  type="button"
+                  onClick={() => setScheduledPublishLocal('')}
+                  className="text-[11px] font-semibold text-rose-700 hover:underline"
+                >
+                  Publish Now
+                </button>
+              )}
+            </div>
+            <span className="text-[11px] text-[#526071]">
+              Leave blank to publish immediately.
+            </span>
+          </div>
+
           <div className="flex flex-wrap items-center justify-end gap-3">
-            {!editingId && (
+            {!editingId && !scheduledPublishLocal && (
               <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-[#1E293B]">
                 <input
                   type="checkbox"
@@ -808,7 +862,13 @@ export function SpecialAnnouncementComposer({
               className="inline-flex items-center gap-1.5 rounded-xl bg-[#1E3A5F] px-5 py-2.5 text-xs font-semibold text-white hover:bg-[#152943] disabled:opacity-50"
             >
               <Save className="h-3.5 w-3.5" />
-              {saving ? 'Saving...' : editingId ? 'Update Special Notice' : 'Publish Special Notice'}
+              {saving
+                ? 'Saving...'
+                : scheduledPublishLocal
+                  ? 'Schedule Special Notice'
+                  : editingId
+                    ? 'Update Special Notice'
+                    : 'Publish Special Notice'}
             </button>
           </div>
         </form>
@@ -849,6 +909,20 @@ export function SpecialAnnouncementComposer({
               const dateDisplay = new Date(
                 item.published_at || item.created_at || item.updated_at
               ).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const isFutureScheduled = Boolean(
+                item.status === 'published' &&
+                  item.scheduled_publish_at &&
+                  Date.parse(item.scheduled_publish_at) > Date.now()
+              );
+              const scheduledLabel =
+                isFutureScheduled && item.scheduled_publish_at
+                  ? new Date(item.scheduled_publish_at).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })
+                  : null;
 
               return (
                 <article
@@ -871,12 +945,16 @@ export function SpecialAnnouncementComposer({
                       </span>
                       <span
                         className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                          item.status === 'published'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-slate-200 text-slate-700'
+                          isFutureScheduled
+                            ? 'bg-violet-100 text-violet-800'
+                            : item.status === 'published'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-slate-200 text-slate-700'
                         }`}
                       >
-                        {item.status}
+                        {isFutureScheduled && scheduledLabel
+                          ? `Scheduled • ${scheduledLabel}`
+                          : item.status}
                       </span>
                       {item.is_pinned && (
                         <span

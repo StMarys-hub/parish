@@ -13,10 +13,12 @@ import {
   Megaphone,
   Paperclip,
   Pin,
+  Share2,
   ShieldCheck,
   Users,
 } from 'lucide-react';
 import { AttentionBadgesResult } from '../lib/announcementSignals';
+import { shareParishNotice } from '../lib/shareNotice';
 import { stripFormattingMarkers } from '../lib/textFormat';
 import { ReactionSummary, ReactionTargetType } from '../types/parish';
 import { ReactionButton } from './ReactionButton';
@@ -132,6 +134,7 @@ export function CollapsibleAnnouncementCard({
   previewText,
   categoryLabel,
   dateTimeLabel,
+  locationLabel,
   isExpanded,
   onToggle,
   unread = false,
@@ -152,6 +155,21 @@ export function CollapsibleAnnouncementCard({
 
   // Graceful 400ms badge fade-out after expanding / dwelling (>= 1.2s total transition)
   const [dismissingBadge, setDismissingBadge] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<'shared' | 'copied' | null>(null);
+
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const res = await shareParishNotice({
+      title,
+      body: previewText,
+      dateTimeLabel,
+      locationLabel,
+    });
+    if (res === 'shared' || res === 'copied') {
+      setShareFeedback(res);
+      window.setTimeout(() => setShareFeedback(null), 2000);
+    }
+  };
 
   useEffect(() => {
     if (!isExpanded || !unread) {
@@ -323,23 +341,40 @@ export function CollapsibleAnnouncementCard({
           <div className="border-t border-parish-border/80 px-3 pb-3.5 pt-2.5">
             {children}
 
-            {(reactionTargetType || (canMoveToRead && onMarkDoneAndMove)) && (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-parish-border/60 pt-3">
-                <div>
-                  {canMoveToRead && onMarkDoneAndMove && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onMarkDoneAndMove();
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-parish-border bg-parish-canvas px-3 py-1 text-xs font-semibold text-parish-navy transition-colors hover:bg-parish-navy hover:text-white"
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                      Done / Move to Bottom
-                    </button>
-                  )}
-                </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-parish-border/60 pt-3">
+              <div>
+                {canMoveToRead && onMarkDoneAndMove && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMarkDoneAndMove();
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-parish-border bg-parish-canvas px-3 py-1 text-xs font-semibold text-parish-navy transition-colors hover:bg-parish-navy hover:text-white"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    Done / Move to Bottom
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  title="Share notice to WhatsApp or copy link"
+                  aria-label={`Share ${title}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-parish-border bg-white px-2.5 py-1 text-xs font-semibold text-parish-muted transition-colors hover:bg-parish-canvas hover:text-parish-navy"
+                >
+                  <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>
+                    {shareFeedback === 'copied'
+                      ? 'Copied!'
+                      : shareFeedback === 'shared'
+                        ? 'Shared!'
+                        : 'Share'}
+                  </span>
+                </button>
 
                 {reactionTargetType && onToggleReaction && (
                   <ReactionButton
@@ -350,7 +385,7 @@ export function CollapsibleAnnouncementCard({
                   />
                 )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>

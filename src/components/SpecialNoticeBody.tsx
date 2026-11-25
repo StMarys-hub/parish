@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { sanitizeActionUrl } from '../lib/sanitize';
 import { NoticeLinkItem, SpecialAnnouncement } from '../types/parish';
+import { CalendarActionMenu } from './CalendarActionMenu';
 import { FormattedText } from './FormattedText';
 
 interface SpecialNoticeBodyProps {
@@ -240,6 +241,18 @@ export function SpecialNoticeBody({ notice, onOpenFlyer }: SpecialNoticeBodyProp
             </button>
           )}
         </div>
+      )}
+
+      {/* One-tap Add to Calendar (.ics / Google Calendar) when a date/time is present */}
+      {eventDateLabel && (
+        <CalendarActionMenu
+          event={{
+            title: notice.title,
+            description: notice.description,
+            dateTimeLabel: eventDateLabel,
+            location: locations[0]?.label ?? notice.location_label,
+          }}
+        />
       )}
 
       {/* Attribution badge */}

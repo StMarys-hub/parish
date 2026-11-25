@@ -140,6 +140,7 @@ export function AdminBulletinComposer({
   const [helpOpen, setHelpOpen] = useState(false);
   const [copiedHelp, setCopiedHelp] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
+  const [scheduledPublishLocal, setScheduledPublishLocal] = useState('');
   const [subscriberCount, setSubscriberCount] = useState<number>(0);
   const [sendPush, setSendPush] = useState(true);
   const [pushTitle, setPushTitle] = useState("St. Mary's Parish Bulletin");
@@ -336,7 +337,7 @@ export function AdminBulletinComposer({
     }
   };
 
-  const buildPayload = (status: 'draft' | 'published') => {
+  const buildPayload = (status: 'draft' | 'published', scheduledPublishIso?: string | null) => {
     const sanitizedAnnouncements = announcements.map((card, i) => ({
       ...card,
       order: i + 1,
@@ -388,7 +389,8 @@ export function AdminBulletinComposer({
         : null,
       sign_off: initialBulletin.sign_off,
       status,
-      published_at: status === 'published' ? new Date().toISOString() : null,
+      published_at: status === 'published' ? scheduledPublishIso || new Date().toISOString() : null,
+      ...(scheduledPublishIso !== undefined ? { scheduled_publish_at: scheduledPublishIso } : {}),
     };
   };
 
@@ -465,6 +467,27 @@ export function AdminBulletinComposer({
     setSaving(true);
     setStatusBanner(null);
     try {
+      const scheduledDate = scheduledPublishLocal ? new Date(scheduledPublishLocal) : null;
+      const isFutureSchedule = Boolean(
+        scheduledDate && Number.isFinite(scheduledDate.getTime()) && scheduledDate.getTime() > Date.now()
+      );
+
+      if (isFutureSchedule && scheduledDate) {
+        await upsertWeeklyBulletin(buildPayload('published', scheduledDate.toISOString()));
+        setPublishModalOpen(false);
+        setStatusBanner({
+          type: 'ok',
+          text: `Bulletin scheduled to go live automatically on ${scheduledDate.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+          })}.`,
+        });
+        onSaved();
+        return;
+      }
+
       const res = await publishBulletinAndNotify({
         bulletinId,
         sendPush,
@@ -1137,20 +1160,53 @@ export function AdminBulletinComposer({
               <h3 className="text-base font-bold">Confirm Publish & Push Alert</h3>
             </div>
 
-            <label className="flex items-start gap-2.5 rounded-xl border border-[#E7E2DA] bg-[#FAF8F5] p-3 text-xs">
+            <div className="rounded-xl border border-[#E7E2DA] bg-[#FAF8F5] p-3 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <label className="font-semibold text-[#1E293B]" htmlFor="bulletin-schedule-publish">
+                  Schedule Publish (Optional)
+                </label>
+                {scheduledPublishLocal && (
+                  <button
+                    type="button"
+                    onClick={() => setScheduledPublishLocal('')}
+                    className="text-[11px] font-semibold text-rose-700 hover:underline"
+                  >
+                    Publish Now
+                  </button>
+                )}
+              </div>
               <input
-                type="checkbox"
-                checked={sendPush}
-                onChange={(e) => setSendPush(e.target.checked)}
-                className="mt-0.5"
+                id="bulletin-schedule-publish"
+                type="datetime-local"
+                value={scheduledPublishLocal}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setScheduledPublishLocal(val);
+                  if (val) setSendPush(false);
+                }}
+                className="mt-1.5 w-full rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs"
               />
-              <span>
-                Send instant push notification to{' '}
-                <strong>{subscriberCount} subscribed device(s)</strong>.
-              </span>
-            </label>
+              <p className="mt-1 text-[11px] text-[#526071]">
+                Leave blank to publish right now, or pick a future time (e.g., Saturday 6:00 PM) to go live automatically.
+              </p>
+            </div>
 
-            {sendPush && (
+            {!scheduledPublishLocal && (
+              <label className="flex items-start gap-2.5 rounded-xl border border-[#E7E2DA] bg-[#FAF8F5] p-3 text-xs">
+                <input
+                  type="checkbox"
+                  checked={sendPush}
+                  onChange={(e) => setSendPush(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Send instant push notification to{' '}
+                  <strong>{subscriberCount} subscribed device(s)</strong>.
+                </span>
+              </label>
+            )}
+
+            {!scheduledPublishLocal && sendPush && (
               <div className="space-y-2.5">
                 <div>
                   <label className="block text-xs font-semibold text-[#526071]">Alert Title</label>
@@ -1195,7 +1251,13 @@ export function AdminBulletinComposer({
                 disabled={saving}
                 className="rounded-xl bg-[#1E3A5F] px-4 py-2 text-xs font-semibold text-white hover:bg-[#152943] disabled:opacity-50"
               >
-                {saving ? 'Publishing...' : sendPush ? 'Publish & Send Push' : 'Publish Only'}
+                {saving
+                  ? 'Saving...'
+                  : scheduledPublishLocal
+                    ? 'Schedule Bulletin'
+                    : sendPush
+                      ? 'Publish & Send Push'
+                      : 'Publish Only'}
               </button>
             </div>
           </div>

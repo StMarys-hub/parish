@@ -58,7 +58,10 @@ export async function fetchPublishedBulletins(limit = 4): Promise<{
       .limit(limit);
 
     if (error) throw error;
-    const rows = (data ?? []) as WeeklyBulletin[];
+    const nowMs = Date.now();
+    const rows = ((data ?? []) as WeeklyBulletin[]).filter(
+      (b) => !b.scheduled_publish_at || Date.parse(b.scheduled_publish_at) <= nowMs
+    );
     if (rows.length > 0) {
       writeCache(CACHE_KEYS.bulletins, rows);
       return { bulletins: rows, source: 'live' };
