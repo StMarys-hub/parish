@@ -1,19 +1,38 @@
 export type AnnouncementCategory =
-  | 'Liturgical'
-  | 'Youth/Young Adults'
-  | 'Ward Prayer'
-  | 'Catechism/CCD'
-  | 'Outreach/Charity'
-  | 'Parish Admin';
+  | 'Liturgy & Sacraments'
+  | 'Faith & CCD'
+  | 'Youth & Ministries'
+  | 'Parish Events & Wards'
+  | 'General & Parish';
 
 export const ANNOUNCEMENT_CATEGORIES: readonly AnnouncementCategory[] = [
-  'Liturgical',
-  'Ward Prayer',
-  'Catechism/CCD',
-  'Youth/Young Adults',
-  'Outreach/Charity',
-  'Parish Admin',
+  'Liturgy & Sacraments',
+  'Faith & CCD',
+  'Youth & Ministries',
+  'Parish Events & Wards',
+  'General & Parish',
 ] as const;
+
+export function normalizeAnnouncementCategory(raw: string | undefined | null): AnnouncementCategory {
+  const val = (raw ?? '').trim();
+  if ((ANNOUNCEMENT_CATEGORIES as readonly string[]).includes(val)) {
+    return val as AnnouncementCategory;
+  }
+  switch (val) {
+    case 'Liturgical':
+      return 'Liturgy & Sacraments';
+    case 'Catechism/CCD':
+      return 'Faith & CCD';
+    case 'Youth/Young Adults':
+      return 'Youth & Ministries';
+    case 'Ward Prayer':
+      return 'Parish Events & Wards';
+    case 'Outreach/Charity':
+    case 'Parish Admin':
+    default:
+      return 'General & Parish';
+  }
+}
 
 export type ActionAttachmentKind = 'external_url' | 'form' | 'flyer' | 'drive';
 

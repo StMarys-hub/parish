@@ -10,7 +10,7 @@ import {
   SAMPLE_REGULAR_SCHEDULES,
 } from './data/sampleData';
 import { BulletinView } from './features/bulletin/BulletinView';
-import { AboutParishView } from './features/parish/AboutParishView';
+import { AboutParishView, ParishSegment } from './features/parish/AboutParishView';
 import { InstallShareBanner } from './features/pwa/InstallShareBanner';
 import { SchedulesView } from './features/schedules/SchedulesView';
 import { applyTextScaleToDocument, getStoredTextScale } from './lib/textScale';
@@ -57,6 +57,7 @@ export function App() {
     }
     return 'bulletin';
   });
+  const [parishSegment, setParishSegment] = useState<ParishSegment>('info');
   const [passwordRecoveryPending, setPasswordRecoveryPending] = useState<boolean>(
     () => initialAuthCallbackState.isRecovery
   );
@@ -227,25 +228,29 @@ export function App() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate('about')}
+                  onClick={() => {
+                    setParishSegment('info');
+                    navigate('about');
+                  }}
                   className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors ${
                     activeTab === 'about'
                       ? 'bg-parish-navy text-white'
                       : 'text-parish-muted hover:bg-parish-canvas hover:text-parish-ink'
                   }`}
                 >
-                  About Parish
+                  Parish
                 </button>
               </nav>
               <button
                 type="button"
                 title={
                   hasLocalPushPreference()
-                    ? 'Parish alerts enabled — tap to manage in About Parish'
+                    ? 'Parish alerts enabled — tap to manage in Parish Settings'
                     : 'Manage parish push alert settings'
                 }
                 aria-label="Manage parish alert settings"
                 onClick={() => {
+                  setParishSegment('settings');
                   navigate('about');
                   window.setTimeout(() => {
                     document
@@ -298,6 +303,7 @@ export function App() {
         {activeTab === 'about' && PHASE_FLAGS.aboutParish && (
           <AboutParishView
             info={parishInfo}
+            initialSegment={parishSegment}
             onOpenAdmin={() => navigate('admin')}
             onOpenReimbursements={() => navigate('reimbursements')}
           />
@@ -319,7 +325,12 @@ export function App() {
                 </div>
               }
             >
-              <ReimbursementPortal onBackToParish={() => navigate('about')} />
+              <ReimbursementPortal
+                onBackToParish={() => {
+                  setParishSegment('services');
+                  navigate('about');
+                }}
+              />
             </Suspense>
           </ErrorBoundary>
         )}
@@ -393,13 +404,16 @@ export function App() {
             </button>
             <button
               type="button"
-              onClick={() => navigate('about')}
+              onClick={() => {
+                setParishSegment('info');
+                navigate('about');
+              }}
               className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold ${
                 activeTab === 'about' ? 'text-parish-navy' : 'text-parish-muted'
               }`}
             >
               <Info className="h-5 w-5" />
-              About Parish
+              Parish
             </button>
           </div>
         </nav>

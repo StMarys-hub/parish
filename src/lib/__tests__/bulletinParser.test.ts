@@ -68,7 +68,7 @@ describe('parseRawBulletin', () => {
     expect(parsed.announcements).toHaveLength(6);
 
     const wardCard = parsed.announcements.find((a) => a.title.includes('Ward Prayer'));
-    expect(wardCard?.category).toBe('Ward Prayer');
+    expect(wardCard?.category).toBe('Parish Events & Wards');
     expect(wardCard?.locationLabel).toContain('Sibi and Ligi');
 
     // Line-wrapped VBS URL rejoined intact

@@ -91,20 +91,35 @@ function inferActionAttachment(rawUrl: string): ActionAttachment | null {
 
 function classifyAnnouncement(title: string, body: string): AnnouncementCategory {
   const hay = `${title} ${body}`.toLowerCase();
-  if (/\bward\s*\d*\b|\bprayer meeting\b/.test(hay)) return 'Ward Prayer';
-  if (/\bccd\b|\bvbs\b|\bcatechism\b|\bgraduation\b|\bbaccalaureate\b|\bvacation bible\b/.test(hay)) {
-    return 'Catechism/CCD';
+  if (
+    /\bward\s*\d*\b|\bprayer meeting\b|\bpotluck\b|\bfriendsgiving\b|\bcaroling\b|\bbake sale\b|\bpicnic\b|\bfestival\b|\bsunday lunch\b|\bdecorating\b/.test(
+      hay
+    )
+  ) {
+    return 'Parish Events & Wards';
   }
-  if (/\byouth\b|\bvocations\b|\bquo vadis\b|\bduc in altum\b|\btalitha koum\b|\bzion\b|\bjesus youth\b/.test(hay)) {
-    return 'Youth/Young Adults';
+  if (
+    /\bccd\b|\bvbs\b|\bcatechism\b|\bgraduation\b|\bbaccalaureate\b|\bvacation bible\b|\bbible quiz\b|\bdei verbum\b|\bfaith formation\b/.test(
+      hay
+    )
+  ) {
+    return 'Faith & CCD';
   }
-  if (/\bbox of joy\b|\bcharity\b|\boutreach\b|\bsponsor\b|\bmedical consultation\b|\bdonation\b/.test(hay)) {
-    return 'Outreach/Charity';
+  if (
+    /\byouth\b|\bvocations\b|\bquo vadis\b|\bduc in altum\b|\btalitha koum\b|\bzion\b|\bjesus youth\b|\bcml\b|\bwomen'?s forum\b|\bmen of st\.\s*joseph\b|\bchoir\b|\brespect life\b|\bministry\b|\bapostolate\b/.test(
+      hay
+    )
+  ) {
+    return 'Youth & Ministries';
   }
-  if (/\bqurbana\b|\bmass\b|\badoration\b|\bconfession\b|\bnovena\b|\brosary\b|\ball souls\b|\bjubilee\b|\bfeast\b/.test(hay)) {
-    return 'Liturgical';
+  if (
+    /\bqurbana\b|\bmass\b|\badoration\b|\bconfession\b|\bnovena\b|\brosary\b|\ball souls\b|\bjubilee\b|\bfeast\b|\bpre-?cana\b|\bsolemn holy communion\b|\bliturgical\b|\bsacrament\b/.test(
+      hay
+    )
+  ) {
+    return 'Liturgy & Sacraments';
   }
-  return 'Parish Admin';
+  return 'General & Parish';
 }
 
 function extractDateTimeLabel(text: string): string | null {

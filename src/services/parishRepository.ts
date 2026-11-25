@@ -11,11 +11,22 @@ import {
   AdminUserProfile,
   AppSettings,
   AuditLogEntry,
+  normalizeAnnouncementCategory,
   ParishInfo,
   RegularScheduleItem,
   ThemeMode,
   WeeklyBulletin,
 } from '../types/parish';
+
+function normalizeBulletinCategories(bulletin: WeeklyBulletin): WeeklyBulletin {
+  return {
+    ...bulletin,
+    announcements: (bulletin.announcements ?? []).map((a) => ({
+      ...a,
+      category: normalizeAnnouncementCategory(a.category),
+    })),
+  };
+}
 
 const CACHE_KEYS = {
   bulletins: 'parish_cache_bulletins_v1',
@@ -59,16 +70,18 @@ export async function fetchPublishedBulletins(limit = 4): Promise<{
 
     if (error) throw error;
     const nowMs = Date.now();
-    const rows = ((data ?? []) as WeeklyBulletin[]).filter(
-      (b) => !b.scheduled_publish_at || Date.parse(b.scheduled_publish_at) <= nowMs
-    );
+    const rows = ((data ?? []) as WeeklyBulletin[])
+      .filter((b) => !b.scheduled_publish_at || Date.parse(b.scheduled_publish_at) <= nowMs)
+      .map(normalizeBulletinCategories);
     if (rows.length > 0) {
       writeCache(CACHE_KEYS.bulletins, rows);
       return { bulletins: rows, source: 'live' };
     }
     return { bulletins: SAMPLE_BULLETINS.slice(0, limit), source: 'sample' };
   } catch {
-    const cached = readCache<WeeklyBulletin[]>(CACHE_KEYS.bulletins, []);
+    const cached = readCache<WeeklyBulletin[]>(CACHE_KEYS.bulletins, []).map(
+      normalizeBulletinCategories
+    );
     if (cached.length > 0) return { bulletins: cached, source: 'cache' };
     return { bulletins: SAMPLE_BULLETINS.slice(0, limit), source: 'sample' };
   }
@@ -168,7 +181,7 @@ export async function fetchAllBulletinsForAdmin(): Promise<WeeklyBulletin[]> {
     .limit(12);
 
   if (error) throw toError(error, 'Failed to fetch bulletins.');
-  return (data ?? []) as WeeklyBulletin[];
+  return ((data ?? []) as WeeklyBulletin[]).map(normalizeBulletinCategories);
 }
 
 export async function upsertWeeklyBulletin(

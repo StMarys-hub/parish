@@ -180,7 +180,7 @@ export function AdminBulletinComposer({
       id: `ann-${Date.now().toString(36)}`,
       order: announcements.length + 1,
       title: 'New Announcement',
-      category: 'Parish Admin',
+      category: 'General & Parish',
       dateTimeLabel: '',
       locationLabel: '',
       body: '',
