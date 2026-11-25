@@ -11,7 +11,6 @@ import {
   cleanDescriptionText,
   cleanMultilineWhitespace,
   stripFormattingMarkers,
-  stripLeadingBullet,
 } from './textFormat';
 
 export interface ParsedVicarMessage {
@@ -270,7 +269,7 @@ export function parseVicarMessage(rawText: string): ParsedVicarMessage {
 
   const rawLines = cleanedRaw
     .split('\n')
-    .map((line) => cleanDescriptionText(stripLeadingBullet(line)))
+    .map((line) => cleanDescriptionText(line))
     .filter(Boolean);
 
   let explicitTitle = '';

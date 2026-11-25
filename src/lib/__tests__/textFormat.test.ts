@@ -3,6 +3,8 @@ import {
   applyWrapFormat,
   cleanAnnouncementTitle,
   cleanDescriptionText,
+  normalizeWhatsAppFormatting,
+  parseFormattedBlocks,
   parseInlineFormattedText,
   stripFormattingMarkers,
   stripLeadingBullet,
@@ -61,5 +63,42 @@ describe('textFormat cleansing & inline formatting', () => {
       'bold text'
     );
     expect(toggledOff.nextValue).toBe('Please bring snacks');
+  });
+
+  it('normalizes WhatsApp *bold*, broken ** *bold* **, spacing glitches, and parses structured headings/lists', () => {
+    expect(cleanAnnouncementTitle('Hi Kunjachan Ward families,')).toBe(
+      'Hi Kunjachan Ward families'
+    );
+    expect(normalizeWhatsAppFormatting('** *Important Ward Updates:* **')).toBe(
+      '**Important Ward Updates:**'
+    );
+    expect(
+      normalizeWhatsAppFormatting(
+        '*2. Ward Fund contribution*: please consider contributing ($50)to the ward fund.'
+      )
+    ).toBe('**2. Ward Fund contribution**: please consider contributing ($50) to the ward fund.');
+
+    const blocks = parseFormattedBlocks([
+      '** *Important Ward Updates:* **',
+      '*1. Prayer Meeting*: No prayer meeting in November.',
+      '*2. Ward Fund contribution*: Contributing ($50)to the ward fund.',
+      '• Bring your family',
+      '• Arrive early',
+    ]);
+
+    expect(blocks).toEqual([
+      { type: 'heading', text: 'Important Ward Updates:', highlighted: false },
+      {
+        type: 'ordered-list',
+        items: [
+          { num: '1', content: '**Prayer Meeting**: No prayer meeting in November.' },
+          { num: '2', content: '**Ward Fund contribution**: Contributing ($50) to the ward fund.' },
+        ],
+      },
+      {
+        type: 'bullet-list',
+        items: ['Bring your family', 'Arrive early'],
+      },
+    ]);
   });
 });

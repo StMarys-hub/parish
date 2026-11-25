@@ -11,7 +11,7 @@ import {
 import { sanitizeActionUrl } from '../lib/sanitize';
 import { NoticeLinkItem, SpecialAnnouncement } from '../types/parish';
 import { CalendarActionMenu } from './CalendarActionMenu';
-import { FormattedText } from './FormattedText';
+import { FormattedRichBlocks } from './FormattedText';
 
 interface SpecialNoticeBodyProps {
   notice: Pick<
@@ -149,16 +149,8 @@ export function SpecialNoticeBody({ notice, onOpenFlyer }: SpecialNoticeBodyProp
         </div>
       )}
 
-      {/* Clean Pastoral / Explanatory Paragraphs */}
-      {paragraphs.length > 0 && (
-        <div className="parish-readable-body space-y-2">
-          {paragraphs.map((p, idx) => (
-            <p key={idx} className="whitespace-pre-line">
-              <FormattedText text={p} />
-            </p>
-          ))}
-        </div>
-      )}
+      {/* Clean Pastoral / Explanatory Paragraphs, Subheadings & Lists */}
+      {paragraphs.length > 0 && <FormattedRichBlocks lines={paragraphs} />}
 
       {/* Tappable Media / Drive / Video Resource Grid */}
       {mediaLinks.length > 0 && (

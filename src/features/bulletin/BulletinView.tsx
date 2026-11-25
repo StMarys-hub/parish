@@ -20,7 +20,7 @@ import { CalendarActionMenu } from '../../components/CalendarActionMenu';
 import { CollapsibleAnnouncementCard } from '../../components/CollapsibleAnnouncementCard';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { FlyerLightbox } from '../../components/FlyerLightbox';
-import { FormattedText } from '../../components/FormattedText';
+import { FormattedRichBlocks } from '../../components/FormattedText';
 import { ScrollablePillBar } from '../../components/ScrollablePillBar';
 import { SpecialNoticeBody } from '../../components/SpecialNoticeBody';
 import { PHASE_FLAGS } from '../../config/features';
@@ -545,9 +545,7 @@ export function BulletinView({
                   </div>
                 )}
 
-                <p className="parish-readable-body whitespace-pre-line text-base leading-[1.6] text-parish-ink">
-                  <FormattedText text={card.body} />
-                </p>
+                <FormattedRichBlocks lines={[card.body]} className="text-base leading-[1.6]" />
 
                 {card.dateTimeLabel && (
                   <div className="mt-3">
@@ -714,9 +712,7 @@ export function BulletinView({
                     )}
                   </div>
                 )}
-                <p className="parish-readable-body whitespace-pre-line text-base leading-[1.6] text-parish-ink">
-                  <FormattedText text={item.body} />
-                </p>
+                <FormattedRichBlocks lines={[item.body]} className="text-base leading-[1.6]" />
                 {safeUrl && (
                   <div className="mt-3">
                     <a
@@ -1064,9 +1060,7 @@ export function BulletinView({
                   </div>
                 )}
 
-                <p className="parish-readable-body whitespace-pre-line text-base leading-[1.6] text-parish-ink">
-                  <FormattedText text={card.body} />
-                </p>
+                <FormattedRichBlocks lines={[card.body]} className="text-base leading-[1.6]" />
 
                 {card.dateTimeLabel && (
                   <div className="mt-3">
@@ -1194,9 +1188,7 @@ export function BulletinView({
                       </div>
                     )}
 
-                    <p className="parish-readable-body whitespace-pre-line text-base leading-[1.6] text-parish-ink">
-                      <FormattedText text={card.body} />
-                    </p>
+                    <FormattedRichBlocks lines={[card.body]} className="text-base leading-[1.6]" />
 
                     {card.dateTimeLabel && (
                       <div className="mt-3">
