@@ -151,7 +151,7 @@ export function SpecialNoticeBody({ notice, onOpenFlyer }: SpecialNoticeBodyProp
 
       {/* Clean Pastoral / Explanatory Paragraphs */}
       {paragraphs.length > 0 && (
-        <div className="space-y-2">
+        <div className="parish-readable-body space-y-2">
           {paragraphs.map((p, idx) => (
             <p key={idx} className="whitespace-pre-line">
               <FormattedText text={p} />

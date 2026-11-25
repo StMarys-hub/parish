@@ -1,21 +1,31 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Bell, BookOpen, CalendarDays, Info } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
+import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { PHASE_FLAGS } from './config/features';
 import {
   SAMPLE_BULLETINS,
   SAMPLE_PARISH_INFO,
   SAMPLE_REGULAR_SCHEDULES,
 } from './data/sampleData';
-import { AdminPortal } from './features/admin/AdminPortal';
 import { BulletinView } from './features/bulletin/BulletinView';
 import { AboutParishView } from './features/parish/AboutParishView';
 import { InstallShareBanner } from './features/pwa/InstallShareBanner';
-import { ReimbursementPortal } from './features/reimbursements/ReimbursementPortal';
 import { SchedulesView } from './features/schedules/SchedulesView';
+import { applyTextScaleToDocument, getStoredTextScale } from './lib/textScale';
 import { applyThemeToDocument, resolveActiveTheme } from './lib/themeEngine';
 import { initialAuthCallbackState, supabase } from './lib/supabase';
+
+// Lazy-load Admin & Reimbursement portals so parishioners load only the lightweight bulletin bundle
+const AdminPortal = lazy(() =>
+  import('./features/admin/AdminPortal').then((m) => ({ default: m.AdminPortal }))
+);
+const ReimbursementPortal = lazy(() =>
+  import('./features/reimbursements/ReimbursementPortal').then((m) => ({
+    default: m.ReimbursementPortal,
+  }))
+);
 import { hasLocalPushPreference } from './services/pushService';
 import {
   fetchAppSettings,
@@ -70,6 +80,10 @@ export function App() {
       applyThemeToDocument('classic');
     }
   }, [resolvedTheme.effectiveThemeId]);
+
+  useEffect(() => {
+    applyTextScaleToDocument(getStoredTextScale());
+  }, []);
 
   const loadAll = useCallback(async () => {
     setLoadingBulletins(true);
@@ -270,6 +284,7 @@ export function App() {
             seasonLabel={resolvedTheme.displayLabel}
             specialAnnouncements={specialAnnouncements}
             ministryUpdates={ministryUpdates}
+            regularSchedules={regularSchedules}
           />
         )}
 
@@ -297,7 +312,15 @@ export function App() {
               </div>
             }
           >
-            <ReimbursementPortal onBackToParish={() => navigate('about')} />
+            <Suspense
+              fallback={
+                <div className="rounded-2xl border border-parish-border bg-white p-8 text-center text-xs text-parish-muted">
+                  Loading Reimbursement Portal...
+                </div>
+              }
+            >
+              <ReimbursementPortal onBackToParish={() => navigate('about')} />
+            </Suspense>
           </ErrorBoundary>
         )}
 
@@ -309,27 +332,37 @@ export function App() {
               </div>
             }
           >
-            <AdminPortal
-              fallbackBulletin={bulletins[0] ?? SAMPLE_BULLETINS[0]}
-              regularSchedules={regularSchedules}
-              parishInfo={parishInfo}
-              themeMode={themeMode}
-              seasonLabel={resolvedTheme.displayLabel}
-              specialAnnouncements={specialAnnouncements}
-              ministryUpdates={ministryUpdates}
-              initialRecoveryMode={passwordRecoveryPending}
-              initialAuthError={initialAuthCallbackState.errorDescription}
-              onRecoveryComplete={() => {
-                setPasswordRecoveryPending(false);
-                window.history.replaceState(null, '', `${window.location.pathname}#/admin`);
-              }}
-              onThemeUpdated={(nextMode) => setThemeMode(nextMode)}
-              onDataChanged={loadAll}
-              onBackToApp={() => navigate('bulletin')}
-            />
+            <Suspense
+              fallback={
+                <div className="rounded-2xl border border-parish-border bg-white p-8 text-center text-xs text-parish-muted">
+                  Loading Parish Admin Portal...
+                </div>
+              }
+            >
+              <AdminPortal
+                fallbackBulletin={bulletins[0] ?? SAMPLE_BULLETINS[0]}
+                regularSchedules={regularSchedules}
+                parishInfo={parishInfo}
+                themeMode={themeMode}
+                seasonLabel={resolvedTheme.displayLabel}
+                specialAnnouncements={specialAnnouncements}
+                ministryUpdates={ministryUpdates}
+                initialRecoveryMode={passwordRecoveryPending}
+                initialAuthError={initialAuthCallbackState.errorDescription}
+                onRecoveryComplete={() => {
+                  setPasswordRecoveryPending(false);
+                  window.history.replaceState(null, '', `${window.location.pathname}#/admin`);
+                }}
+                onThemeUpdated={(nextMode) => setThemeMode(nextMode)}
+                onDataChanged={loadAll}
+                onBackToApp={() => navigate('bulletin')}
+              />
+            </Suspense>
           </ErrorBoundary>
         )}
       </main>
+
+      <ScrollToTopButton />
 
       {/* Mobile Bottom Tab Bar */}
       {activeTab !== 'admin' && (

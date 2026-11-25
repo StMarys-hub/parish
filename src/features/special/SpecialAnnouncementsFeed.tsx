@@ -186,16 +186,13 @@ export function SpecialAnnouncementsFeed({
   };
 
   return (
-    <section
-      className="rounded-2xl border border-parish-gold/30 bg-white/80 p-2.5 shadow-2xs sm:p-3"
-      aria-label="Special Notices from Parish Vicar"
-    >
+    <section className="space-y-2.5" aria-label="Special Notices from Parish Vicar">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
           aria-expanded={sectionExpanded}
           onClick={() => setSectionExpanded((prev) => !prev)}
-          className="group flex min-w-0 flex-1 items-center gap-2 rounded-xl border-l-[3px] border-l-parish-gold bg-parish-gold-soft/75 px-2.5 py-1.5 text-left transition-colors hover:bg-parish-gold-soft"
+          className="group flex min-w-0 flex-1 items-center gap-2 rounded-xl border-l-[3px] border-l-parish-gold bg-parish-gold-soft/85 px-2.5 py-1.5 text-left shadow-2xs transition-all hover:bg-parish-gold-soft active:scale-[0.99]"
         >
           <div className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-lg bg-white/90 text-parish-gold-ink shadow-2xs">
             <Megaphone className="h-3.5 w-3.5" />

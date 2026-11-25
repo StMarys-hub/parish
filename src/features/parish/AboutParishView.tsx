@@ -1,6 +1,14 @@
-import { Clock, Globe, Mail, MapPin, Navigation, Phone, Receipt, Shield, Users } from 'lucide-react';
+import { useState } from 'react';
+import { Clock, Globe, Mail, MapPin, Navigation, Phone, Receipt, Shield, Type, Users } from 'lucide-react';
 import { PHASE_FLAGS } from '../../config/features';
 import { sanitizeActionUrl } from '../../lib/sanitize';
+import {
+  applyTextScaleToDocument,
+  formatTextScaleLabel,
+  getStoredTextScale,
+  stepTextScale,
+  TextScaleLevel,
+} from '../../lib/textScale';
 import { ParishInfo } from '../../types/parish';
 import { PushOptInCard } from '../notifications/PushOptInCard';
 import { InstallShareBanner } from '../pwa/InstallShareBanner';
@@ -12,10 +20,17 @@ interface AboutParishViewProps {
 }
 
 export function AboutParishView({ info, onOpenAdmin, onOpenReimbursements }: AboutParishViewProps) {
+  const [textScale, setTextScale] = useState<TextScaleLevel>(() => getStoredTextScale());
   const safeMapsUrl = sanitizeActionUrl(info.maps_url);
   const safeWebsiteUrl = sanitizeActionUrl(info.website_url);
   const safeEmailUrl = sanitizeActionUrl(`mailto:${info.email}`, true);
   const telHref = `tel:${info.phone.replace(/[^+\d]/g, '')}`;
+
+  const handleScaleChange = (delta: -1 | 1) => {
+    const next = stepTextScale(textScale, delta);
+    setTextScale(next);
+    applyTextScaleToDocument(next);
+  };
 
   return (
     <div className="space-y-4">
@@ -69,6 +84,40 @@ export function AboutParishView({ info, onOpenAdmin, onOpenReimbursements }: Abo
       <div id="parish-alerts-section">
         <PushOptInCard />
       </div>
+
+      {/* Compact Reading Text Size Control (A- / A+) */}
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-parish-border bg-white px-4 py-3.5 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <div className="rounded-xl bg-parish-navy/10 p-2 text-parish-navy">
+            <Type className="h-4 w-4" aria-hidden="true" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-parish-ink">Reading Text Size</h3>
+            <p className="text-xs text-parish-muted">{formatTextScaleLabel(textScale)}</p>
+          </div>
+        </div>
+        <div className="inline-flex items-center overflow-hidden rounded-xl border border-parish-border bg-parish-canvas">
+          <button
+            type="button"
+            disabled={textScale === 'normal'}
+            onClick={() => handleScaleChange(-1)}
+            aria-label="Decrease reading text size"
+            className="px-3 py-1.5 text-xs font-bold text-parish-navy hover:bg-white disabled:opacity-40"
+          >
+            A-
+          </button>
+          <span className="h-4 w-px bg-parish-border" aria-hidden="true" />
+          <button
+            type="button"
+            disabled={textScale === 'xlarge'}
+            onClick={() => handleScaleChange(1)}
+            aria-label="Increase reading text size"
+            className="px-3 py-1.5 text-sm font-bold text-parish-navy hover:bg-white disabled:opacity-40"
+          >
+            A+
+          </button>
+        </div>
+      </section>
 
       {/* Parishioner Expense Reimbursement Portal */}
       {PHASE_FLAGS.reimbursements && onOpenReimbursements && (

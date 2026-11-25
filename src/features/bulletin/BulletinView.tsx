@@ -23,6 +23,7 @@ import { FormattedText } from '../../components/FormattedText';
 import { ScrollablePillBar } from '../../components/ScrollablePillBar';
 import { PHASE_FLAGS } from '../../config/features';
 import { computeAttentionBadges } from '../../lib/announcementSignals';
+import { findNextParishService } from '../../lib/nextServiceHelper';
 import { useReadAnnouncements } from '../../lib/readReceipts';
 import { sanitizeActionUrl } from '../../lib/sanitize';
 import { useSmartAnnouncementOrder } from '../../lib/useSmartAnnouncementOrder';
@@ -37,6 +38,7 @@ import {
   AnnouncementCategory,
   MinistryUpdate,
   ReactionTargetType,
+  RegularScheduleItem,
   SpecialAnnouncement,
   WeeklyBulletin,
 } from '../../types/parish';
@@ -53,6 +55,7 @@ interface BulletinViewProps {
   seasonLabel?: string;
   specialAnnouncements?: SpecialAnnouncement[];
   ministryUpdates?: MinistryUpdate[];
+  regularSchedules?: RegularScheduleItem[];
   isPreview?: boolean;
 }
 
@@ -91,6 +94,7 @@ export function BulletinView({
   seasonLabel,
   specialAnnouncements = [],
   ministryUpdates = [],
+  regularSchedules = [],
   isPreview = false,
 }: BulletinViewProps) {
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
@@ -152,6 +156,14 @@ export function BulletinView({
   );
 
   const activeBulletin = bulletins[selectedWeekIndex] ?? bulletins[0];
+
+  const nextService = useMemo(
+    () =>
+      activeBulletin
+        ? findNextParishService(activeBulletin.daily_schedule, regularSchedules)
+        : null,
+    [activeBulletin, regularSchedules]
+  );
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<AnnouncementCategory, number>();
@@ -377,6 +389,26 @@ export function BulletinView({
             </span>
           )}
         </div>
+
+        {nextService && selectedWeekIndex === 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setScheduleExpanded(true);
+              window.setTimeout(() => {
+                document
+                  .getElementById('weekly-qurbana-schedule')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 80);
+            }}
+            className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/12 px-2.5 py-1 text-[11px] font-medium text-white/95 transition-colors hover:bg-white/20 active:scale-[0.99]"
+          >
+            <Clock className="h-3 w-3 shrink-0 text-amber-200" aria-hidden="true" />
+            <span className="truncate">
+              <strong className="font-semibold text-white">Next:</strong> {nextService.fullText}
+            </span>
+          </button>
+        )}
       </section>
 
       {searchOpen && (
@@ -519,17 +551,14 @@ export function BulletinView({
           />
         </ErrorBoundary>
       ) : (
-        <section
-          className="rounded-2xl border border-parish-border/80 bg-white/80 p-2.5 shadow-2xs sm:p-3"
-          aria-label="Weekly Announcements"
-        >
-          {/* Collapsible Weekly Announcements Master Header */}
+        <section className="space-y-2" aria-label="Weekly Announcements">
+          {/* Collapsible Weekly Announcements Master Header (Flat, clean hierarchy without nested outer box) */}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
               aria-expanded={weeklyExpanded}
               onClick={() => setWeeklyExpanded((v) => !v)}
-              className="group flex min-w-0 flex-1 items-center gap-2 rounded-xl px-1 py-1 text-left transition-colors hover:bg-parish-canvas/70"
+              className="group flex min-w-0 flex-1 items-center gap-2 rounded-xl bg-white/80 px-2.5 py-1.5 text-left shadow-2xs ring-1 ring-parish-border/70 transition-all hover:bg-white active:scale-[0.99]"
             >
               <Calendar className="h-4 w-4 shrink-0 text-parish-navy" aria-hidden="true" />
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
@@ -636,7 +665,7 @@ export function BulletinView({
                   </div>
                 )}
 
-                <p className="whitespace-pre-line text-base leading-[1.6] text-parish-ink">
+                <p className="parish-readable-body whitespace-pre-line text-base leading-[1.6] text-parish-ink">
                   <FormattedText text={card.body} />
                 </p>
 
@@ -766,7 +795,7 @@ export function BulletinView({
                       </div>
                     )}
 
-                    <p className="whitespace-pre-line text-base leading-[1.6] text-parish-ink">
+                    <p className="parish-readable-body whitespace-pre-line text-base leading-[1.6] text-parish-ink">
                       <FormattedText text={card.body} />
                     </p>
 
@@ -843,9 +872,12 @@ export function BulletinView({
         </section>
       )}
 
-      {/* Weekly Holy Qurbana Schedule & Offertory placed cleanly below primary updates */}
+      {/* Weekly Holy Qurbana Schedule placed cleanly below primary updates */}
       {activeBulletin.daily_schedule.length > 0 && (
-        <section className="overflow-hidden rounded-2xl border border-parish-border bg-white shadow-2xs">
+        <section
+          id="weekly-qurbana-schedule"
+          className="overflow-hidden rounded-2xl border border-parish-border bg-white shadow-xs"
+        >
           <button
             type="button"
             onClick={() => setScheduleExpanded((v) => !v)}

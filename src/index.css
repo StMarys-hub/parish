@@ -170,6 +170,17 @@
   }
 }
 
+/* Accessible reading comfort text scaling (A- / A+ toggle — scales descriptions without breaking headers/pills) */
+:root[data-text-scale='large'] .parish-readable-body {
+  font-size: 1.08rem;
+  line-height: 1.68;
+}
+
+:root[data-text-scale='xlarge'] .parish-readable-body {
+  font-size: 1.18rem;
+  line-height: 1.72;
+}
+
 /* Dynamic horizontal scroll edge fade masks for pill rows (zero vertical/horizontal footprint) */
 .parish-pill-mask-right {
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent 100%);

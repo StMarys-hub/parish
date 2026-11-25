@@ -219,7 +219,7 @@ export function CollapsibleAnnouncementCard({
         aria-expanded={isExpanded}
         onClick={onToggle}
         onKeyDown={handleHeaderKeyDown}
-        className={`flex min-h-[56px] w-full items-stretch gap-2.5 px-3 py-3 text-left transition-colors ${
+        className={`flex min-h-[56px] w-full items-stretch gap-2.5 px-3 py-3 text-left transition-all active:scale-[0.99] ${
           highlighted && !isExpanded
             ? 'bg-parish-gold-soft/30 hover:bg-parish-gold-soft/45'
             : isMutedRead
