@@ -1268,22 +1268,44 @@ export function AdminBulletinComposer({
         open={helpOpen}
         onClose={() => setHelpOpen(false)}
         title="Weekly Bulletin Formatting Guide"
-        subtitle="Paste directly from Word, Email, or WhatsApp — cards & tags auto-format cleanly."
+        subtitle="Paste directly from Word, Email, PDF, or WhatsApp — schedules, cards, and categories auto-format cleanly."
       >
         <div className="rounded-xl border border-[#E7E2DA] bg-[#FAF8F5] p-3.5 text-xs leading-relaxed text-[#526071]">
-          <p className="font-bold text-[#1E293B]">Recommended Weekly Format:</p>
+          <p className="font-bold text-[#1E293B]">Smart Paste, Categories &amp; Formatting Tips:</p>
           <ul className="mt-2 list-disc space-y-1.5 pl-4">
             <li>
-              <strong>Header Line:</strong> Start with <code className="rounded bg-white px-1 py-0.5 text-[#1E3A5F]">Weekly Schedule (MM/DD/YYYY - MM/DD/YYYY)</code> so dates auto-fill.
+              <strong>Header Line:</strong> Start with{' '}
+              <code className="rounded bg-white px-1 py-0.5 text-[#1E3A5F]">
+                Weekly Schedule (MM/DD/YYYY - MM/DD/YYYY)
+              </code>{' '}
+              so week dates auto-fill. You can also edit individual Mass times anytime under{' '}
+              <strong>Card Editor → This Week&apos;s Holy Qurbana &amp; Services</strong>.
             </li>
             <li>
-              <strong>Announcements Section:</strong> Start bullet lines with <code className="rounded bg-white px-1 py-0.5 text-[#1E3A5F]">• Title: Details...</code> to auto-split into collapsible cards.
+              <strong>Auto-Cleansed Titles:</strong> Start bullets with{' '}
+              <code className="rounded bg-white px-1 py-0.5 text-[#1E3A5F]">• Title: Details...</code>.
+              Extra spaces, invisible Word/PDF characters, and leading bullets/numbers are stripped from titles automatically.
             </li>
             <li>
-              <strong>Auto-Category Tagging:</strong> Mentioning keywords like <code className="rounded bg-white px-1 py-0.5">CML</code>, <code className="rounded bg-white px-1 py-0.5">CCD</code>, <code className="rounded bg-white px-1 py-0.5">Youth</code>, <code className="rounded bg-white px-1 py-0.5">Ward</code>, or <code className="rounded bg-white px-1 py-0.5">Choir</code> sets the category badge automatically.
+              <strong>5 Parish Categories (Auto-Tagged):</strong>{' '}
+              <code className="rounded bg-white px-1 py-0.5">Liturgy &amp; Sacraments</code>,{' '}
+              <code className="rounded bg-white px-1 py-0.5">Faith &amp; CCD</code>,{' '}
+              <code className="rounded bg-white px-1 py-0.5">Youth &amp; Ministries</code>,{' '}
+              <code className="rounded bg-white px-1 py-0.5">Parish Events &amp; Wards</code>, and{' '}
+              <code className="rounded bg-white px-1 py-0.5">General &amp; Parish</code>.
             </li>
             <li>
-              <strong>Sunday Collection & Links:</strong> Include <code className="rounded bg-white px-1 py-0.5">Sunday Collection: $462</code> to update the offering box, and any <code className="rounded bg-white px-1 py-0.5">https://...</code> URL becomes a safe tap button.
+              <strong>Bold &amp; Highlight in Descriptions:</strong> In <strong>Card Editor</strong>, select any phrase in a description and tap{' '}
+              <strong>Bold</strong> (<code className="rounded bg-white px-1 py-0.5">**text**</code> / <kbd className="rounded border bg-white px-1">Ctrl+B</kbd>) or{' '}
+              <strong>Highlight</strong> (<code className="rounded bg-white px-1 py-0.5">==text==</code> / <kbd className="rounded border bg-white px-1">Ctrl+Shift+H</kbd>).
+            </li>
+            <li>
+              <strong>Collection, Calendar &amp; Links:</strong> Include{' '}
+              <code className="rounded bg-white px-1 py-0.5">Sunday Collection: $462</code> for the Weekly Offertory card; dates enable one-tap{' '}
+              <strong>Add to Calendar</strong>, and <code className="rounded bg-white px-1 py-0.5">https://...</code> URLs become safe action buttons.
+            </li>
+            <li>
+              <strong>Scheduled Publishing:</strong> Click <strong>Publish &amp; Notify</strong> and optionally set a future date/time (e.g., Saturday 6:00 PM) to go live automatically.
             </li>
           </ul>
         </div>

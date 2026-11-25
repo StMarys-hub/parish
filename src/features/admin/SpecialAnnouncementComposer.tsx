@@ -92,14 +92,14 @@ function formatEventDateTimeLabel(dateIso: string, time24: string): string {
 const SAMPLE_TEMPLATES = [
   {
     id: 'pastoral',
-    label: 'Template A: Quick Pastoral / Mass Update',
+    label: 'Template A: Quick Pastoral / Liturgy Update',
     badge: 'Vicar Note',
-    description: 'Strips greeting & sign-off clutter while preserving clean attribution.',
+    description: 'Strips greeting & sign-off clutter, cleans bullets, and showcases Bold & Highlight.',
     text: `Dear Parish Family,
 Praise be to Jesus Christ!
 
 Lenten Confession & First Friday Devotion Update
-Fr. Mathew will be available for individual Confessions every Friday from 5:30 PM to 6:45 PM prior to Way of the Cross and Holy Qurbana at the Main Church.
+Fr. Mathew will be available for individual Confessions every Friday from **5:30 PM to 6:45 PM** prior to ==Way of the Cross and Holy Qurbana== at the Main Church.
 
 God bless you all!
 - Rajeev Achan`,
@@ -1048,18 +1048,24 @@ export function SpecialAnnouncementComposer({
         open={helpOpen}
         onClose={() => setHelpOpen(false)}
         title="How to Format a Special Notice"
-        subtitle="Just paste naturally from WhatsApp, Word, or Email — the smart parser organizes everything automatically."
+        subtitle="Paste naturally from WhatsApp, Word, or Email — timelines, links, cleansing, and previews happen automatically."
       >
         <div className="rounded-xl border border-[#E7E2DA] bg-[#FAF8F5] p-3.5 text-xs leading-relaxed text-[#526071]">
           <ul className="list-disc space-y-2 pl-4">
             <li>
-              <strong className="text-[#1E293B]">Zero special codes needed:</strong> Paste Fr. Rajeev’s text verbatim from WhatsApp, Word, or Email.
+              <strong className="text-[#1E293B]">Zero special codes &amp; auto-cleansing:</strong> Paste text verbatim from WhatsApp, Word, or Email. Leading bullets, extra spaces, and greetings (<code className="rounded bg-white px-1">Dear Parish Family</code>) are cleaned automatically while preserving sign-offs (<code className="rounded bg-white px-1">— Rajeev Achan</code>).
             </li>
             <li>
-              <strong className="text-[#1E293B]">Timetables, Maps & Media Links auto-group:</strong> Time lines (<code className="rounded bg-white px-1">8:00 AM - Holy Qurbana</code>), Mission locations (<code className="rounded bg-white px-1">St. Sebastian Mission, Blythewood</code>), and labeled Google Drive/YouTube URLs automatically turn into clean timeline rows, map buttons, and media resource cards.
+              <strong className="text-[#1E293B]">Bold &amp; Highlight in Descriptions:</strong> Select any text in the message box and tap <strong>Bold</strong> (<code className="rounded bg-white px-1">**text**</code> / <kbd className="rounded border bg-white px-1">Ctrl+B</kbd>) or <strong>Highlight</strong> (<code className="rounded bg-white px-1">==text==</code> / <kbd className="rounded border bg-white px-1">Ctrl+Shift+H</kbd>). Collapsed previews stay plain and clean.
             </li>
             <li>
-              <strong className="text-[#1E293B]">Clean Collapsed Previews:</strong> Greetings like <code className="rounded bg-white px-1">Dear Parish Family</code> and raw URLs are stripped from collapsed previews, while sign-offs (<code className="rounded bg-white px-1">— Rajeev Achan</code>) remain attributed cleanly at the bottom.
+              <strong className="text-[#1E293B]">Timetables, Maps &amp; Media Links:</strong> Time lines (<code className="rounded bg-white px-1">8:00 AM - Holy Qurbana</code>), Mission venues (<code className="rounded bg-white px-1">St. Sebastian Mission, Blythewood</code>), and labeled Google Drive/YouTube URLs auto-format into schedule rows, map chips, and media buttons.
+            </li>
+            <li>
+              <strong className="text-[#1E293B]">Defaults, Badges &amp; Calendar:</strong> Defaults to <strong>Vicar Note</strong> (with <strong>Liturgy</strong>, <strong>Sunday Liturgy</strong>, <strong>Media &amp; Highlights</strong>, <strong>Youth &amp; Events</strong>, and <strong>Urgent</strong> options), <strong>unpinned</strong>, and <strong>Today at 7:00 PM</strong> (which enables one-tap <strong>Add to Calendar</strong> — click <em>Clear</em> if no event date is needed).
+            </li>
+            <li>
+              <strong className="text-[#1E293B]">Optional Push &amp; Scheduled Publishing:</strong> Check <strong>Send instant push notification</strong> only when publishing an urgent new notice, or set <strong>Schedule Publish</strong> to make a notice go live automatically at a future date/time.
             </li>
           </ul>
         </div>
