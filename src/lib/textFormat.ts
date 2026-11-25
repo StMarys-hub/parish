@@ -66,8 +66,8 @@ export function cleanAnnouncementTitle(raw: string): string {
   if (!raw) return '';
   let text = stripLeadingBullet(raw);
   text = stripFormattingMarkers(text);
-  // Also strip WhatsApp single-asterisk title wrappers like "*Youth Retreat*"
-  text = text.replace(/^\*([^*\n]+)\*$/, '$1');
+  // Also strip WhatsApp single-asterisk title wrappers like "*Youth Retreat*" or stray leading/trailing "*"
+  text = text.replace(/^\*([^*\n]+)\*$/, '$1').replace(/^\*+\s*/, '').replace(/\s*\*+$/, '');
   // Clean stray leading/trailing punctuation or extra spaces
   text = text
     .replace(LEADING_BULLET_RE, '')

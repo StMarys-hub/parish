@@ -943,8 +943,8 @@ export function BulletinView({
           className="scroll-mt-20 space-y-2"
           aria-label="Weekly Announcements"
         >
-          {/* Collapsible Weekly Announcements Master Header (Flat, clean hierarchy without nested outer box) */}
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          {/* Collapsible Weekly Announcements Master Header (Full-width single row on mobile; inline actions on desktop) */}
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
             <button
               type="button"
               aria-expanded={weeklyExpanded}
@@ -954,15 +954,18 @@ export function BulletinView({
                 }
                 setWeeklyExpanded((v) => !v);
               }}
-              className="group flex min-w-0 flex-1 items-center gap-2 rounded-xl bg-white/80 px-2.5 py-1.5 text-left shadow-2xs ring-1 ring-parish-border/70 transition-all hover:bg-white active:scale-[0.99]"
+              className="group flex w-full min-w-0 items-center gap-2 rounded-xl bg-white/85 px-2.5 py-2 text-left shadow-2xs ring-1 ring-parish-border/70 transition-all hover:bg-white active:scale-[0.99] sm:flex-1"
             >
               <Calendar className="h-4 w-4 shrink-0 text-parish-navy" aria-hidden="true" />
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-                <h2 className="text-[13px] font-bold tracking-tight text-parish-ink group-hover:text-parish-navy sm:text-sm">
-                  Weekly Announcements ({formatNumericMonthDay(activeBulletin.week_start)} –{' '}
-                  {formatNumericMonthDay(activeBulletin.week_end)})
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                <h2 className="truncate text-[13px] font-bold tracking-tight text-parish-ink group-hover:text-parish-navy sm:text-sm">
+                  Weekly Announcements
                 </h2>
-                <span className="inline-flex items-center gap-1 rounded-full border border-parish-border bg-parish-canvas px-2 py-0.5 text-[10px] font-semibold text-parish-navy">
+                <span className="shrink-0 text-[11px] font-medium text-parish-muted">
+                  · {formatNumericMonthDay(activeBulletin.week_start)}–
+                  {formatNumericMonthDay(activeBulletin.week_end)}
+                </span>
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-parish-canvas px-2 py-0.5 text-[10px] font-semibold text-parish-navy">
                   {visibleAnnouncements.length}
                   {PHASE_FLAGS.unreadIndicators && unreadVisibleKeys.length > 0 && (
                     <span
@@ -971,17 +974,17 @@ export function BulletinView({
                     />
                   )}
                 </span>
-                <ChevronDown
-                  className={`h-4 w-4 shrink-0 text-parish-navy transition-transform duration-200 ${
-                    weeklyExpanded ? 'rotate-180' : ''
-                  }`}
-                  aria-hidden="true"
-                />
               </div>
+              <ChevronDown
+                className={`ml-auto h-4 w-4 shrink-0 text-parish-navy transition-transform duration-200 ${
+                  weeklyExpanded ? 'rotate-180' : ''
+                }`}
+                aria-hidden="true"
+              />
             </button>
 
             {weeklyExpanded && visibleAnnouncements.length > 0 && (
-              <div className="flex shrink-0 items-center gap-1.5">
+              <div className="flex shrink-0 items-center justify-end gap-1.5">
                 <button
                   type="button"
                   onClick={toggleExpandAllVisible}

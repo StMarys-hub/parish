@@ -191,66 +191,62 @@ export function SpecialAnnouncementsFeed({
 
   return (
     <section className="space-y-2.5" aria-label="Special Notices from Parish Vicar">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
         <button
           type="button"
           aria-expanded={sectionExpanded}
-          onClick={() => setSectionExpanded((prev) => !prev)}
-          className="group flex min-w-0 flex-1 items-center gap-2 rounded-xl border-l-[3px] border-l-parish-gold bg-parish-gold-soft/85 px-2.5 py-1.5 text-left shadow-2xs transition-all hover:bg-parish-gold-soft active:scale-[0.99]"
+          onClick={() => {
+            onCardInteract?.();
+            setSectionExpanded((prev) => !prev);
+          }}
+          className="group flex w-full min-w-0 items-center gap-2 rounded-xl border-l-[3px] border-l-parish-gold bg-parish-gold-soft/85 px-2.5 py-2 text-left shadow-2xs transition-all hover:bg-parish-gold-soft active:scale-[0.99] sm:flex-1"
         >
           <div className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-lg bg-white/90 text-parish-gold-ink shadow-2xs">
             <Megaphone className="h-3.5 w-3.5" />
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <h2 className="text-[13px] font-bold tracking-tight text-parish-navy sm:text-sm">
-                Special Vicar & Parish Notices
-              </h2>
-              {unreadItems.length > 0 ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
-                  <span className="h-[7px] w-[7px] rounded-full bg-red-500 ring-1 ring-white" />
-                  {unreadItems.length} New
-                </span>
-              ) : (
-                <span className="rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-parish-muted ring-1 ring-parish-border/70">
-                  {items.length}
-                </span>
-              )}
-              <ChevronDown
-                className={`h-4 w-4 shrink-0 text-parish-navy transition-transform duration-200 ${
-                  sectionExpanded ? 'rotate-180' : ''
-                }`}
-                aria-hidden="true"
-              />
-            </div>
-            <p className="truncate text-[11px] text-parish-muted">
-              {sectionExpanded
-                ? unreadItems.length > 0
-                  ? `${unreadItems.length} new ${unreadItems.length === 1 ? 'notice' : 'notices'} — tap title to collapse`
-                  : 'Tap any notice card to review details, or tap title to collapse'
-                : 'Tap title to expand Special Vicar & Parish Notices'}
-            </p>
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <h2 className="truncate text-[13px] font-bold tracking-tight text-parish-navy sm:text-sm">
+              Special Vicar &amp; Parish Notices
+            </h2>
+            {unreadItems.length > 0 ? (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+                <span className="h-[7px] w-[7px] rounded-full bg-red-500 ring-1 ring-white" />
+                {unreadItems.length} New
+              </span>
+            ) : (
+              <span className="shrink-0 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-parish-muted ring-1 ring-parish-border/70">
+                {items.length}
+              </span>
+            )}
           </div>
+          <ChevronDown
+            className={`ml-auto h-4 w-4 shrink-0 text-parish-navy transition-transform duration-200 ${
+              sectionExpanded ? 'rotate-180' : ''
+            }`}
+            aria-hidden="true"
+          />
         </button>
 
         {sectionExpanded && (
-          <button
-            type="button"
-            onClick={handleToggleAll}
-            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-white px-2.5 py-1 text-[11px] font-semibold text-parish-navy hover:bg-parish-canvas"
-          >
-            {areAllExpanded ? (
-              <>
-                <ChevronsDownUp className="h-3.5 w-3.5" />
-                Collapse All
-              </>
-            ) : (
-              <>
-                <ChevronsUpDown className="h-3.5 w-3.5" />
-                Expand All
-              </>
-            )}
-          </button>
+          <div className="flex justify-end sm:shrink-0">
+            <button
+              type="button"
+              onClick={handleToggleAll}
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-white px-2.5 py-1 text-[11px] font-semibold text-parish-navy hover:bg-parish-canvas"
+            >
+              {areAllExpanded ? (
+                <>
+                  <ChevronsDownUp className="h-3.5 w-3.5" />
+                  Collapse All
+                </>
+              ) : (
+                <>
+                  <ChevronsUpDown className="h-3.5 w-3.5" />
+                  Expand All
+                </>
+              )}
+            </button>
+          </div>
         )}
       </div>
 

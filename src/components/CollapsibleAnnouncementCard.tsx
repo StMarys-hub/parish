@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { AttentionBadgesResult } from '../lib/announcementSignals';
 import { shareParishNotice } from '../lib/shareNotice';
-import { stripFormattingMarkers } from '../lib/textFormat';
+import { cleanAnnouncementTitle, stripFormattingMarkers } from '../lib/textFormat';
 import { ReactionSummary, ReactionTargetType } from '../types/parish';
 import { ReactionButton } from './ReactionButton';
 import { SwipeableAnnouncementCard } from './SwipeableAnnouncementCard';
@@ -292,7 +292,7 @@ export function CollapsibleAnnouncementCard({
               isMutedRead ? 'font-semibold text-parish-ink/85' : 'font-bold text-parish-ink'
             }`}
           >
-            {title}
+            {cleanAnnouncementTitle(title) || title}
           </h3>
 
           {/* Sub-Row when collapsed: Date micro-pill + 1-line truncated preview + compact indicators */}
