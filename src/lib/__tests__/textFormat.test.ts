@@ -140,5 +140,37 @@ describe('textFormat cleansing & inline formatting', () => {
     expect(
       stripFormattingMarkers('{c:crimson}Cancelled{/c} at {h:sky}Main Church{/h}')
     ).toBe('Cancelled at Main Church');
+
+    // Double-click trailing space stays outside tags & switching colors replaces instead of nesting
+    const firstColor = applyTaggedWrapFormat(
+      'Today is Friendsgiving potluck',
+      9,
+      23, // "Friendsgiving " with trailing space
+      '{c:navy}',
+      '{/c}',
+      'colored text',
+      'color'
+    );
+    expect(firstColor.nextValue).toBe('Today is {c:navy}Friendsgiving{/c} potluck');
+
+    const switchedColor = applyTaggedWrapFormat(
+      firstColor.nextValue,
+      firstColor.nextStart,
+      firstColor.nextEnd,
+      '{c:crimson}',
+      '{/c}',
+      'colored text',
+      'color'
+    );
+    expect(switchedColor.nextValue).toBe('Today is {c:crimson}Friendsgiving{/c} potluck');
+
+    // Legacy accidentally nested same-type tags collapse cleanly on display
+    expect(
+      parseInlineFormattedText('Today, there will be a {c:navy}{c:crimson}Friendsgiving {/c}{/c}potluck')
+    ).toEqual([
+      { value: 'Today, there will be a ' },
+      { value: 'Friendsgiving ', color: 'crimson' },
+      { value: 'potluck' },
+    ]);
   });
 });

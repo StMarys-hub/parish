@@ -111,26 +111,26 @@ export function FormattedTextarea({
       end,
       `{c:${tone}}`,
       '{/c}',
-      'colored text'
+      'colored text',
+      'color'
     );
     commitEdit(nextValue, nextStart, nextEnd);
   };
 
   const handleHighlightColor = (tone: HighlightColorTone) => {
-    if (tone === 'gold') {
-      handleFormat('==', 'highlighted text');
-      return;
-    }
     const el = textareaRef.current;
     const start = el?.selectionStart ?? value.length;
     const end = el?.selectionEnd ?? value.length;
+    const openTag = tone === 'gold' ? '==' : `{h:${tone}}`;
+    const closeTag = tone === 'gold' ? '==' : '{/h}';
     const { nextValue, nextStart, nextEnd } = applyTaggedWrapFormat(
       value,
       start,
       end,
-      `{h:${tone}}`,
-      '{/h}',
-      'highlighted text'
+      openTag,
+      closeTag,
+      'highlighted text',
+      'highlight'
     );
     commitEdit(nextValue, nextStart, nextEnd);
   };

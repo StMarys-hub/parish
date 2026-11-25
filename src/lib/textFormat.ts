@@ -294,19 +294,47 @@ function parseInlineRecursive(
 }
 
 /**
+ * Collapses accidentally nested same-type color/highlight tags (e.g. `{c:navy}{c:crimson}Hi{/c}{/c}` -> `{c:crimson}Hi{/c}`)
+ * so inner user intent always wins and no stray closing tags leak into rendered text.
+ */
+function collapseNestedSameTags(input: string): string {
+  let out = input;
+  let prev = '';
+  let guard = 0;
+  while (out !== prev && guard < 6) {
+    prev = out;
+    guard++;
+    out = out
+      .replace(
+        /\{c:(?:navy|crimson|emerald|gold|purple)\}\s*(\{c:(?:navy|crimson|emerald|gold|purple)\}[^\n]*?\{\/c\})\s*\{\/c\}/gi,
+        '$1'
+      )
+      .replace(
+        /\{h:(?:gold|rose|emerald|sky)\}\s*(\{h:(?:gold|rose|emerald|sky)\}[^\n]*?\{\/h\})\s*\{\/h\}/gi,
+        '$1'
+      );
+  }
+  return out;
+}
+
+/**
  * Parses safe inline formatting markers into typed segments for React rendering.
  * Supports arbitrary nesting of **bold**, ==highlight==, {c:tone}...{/c}, and {h:tone}...{/h}.
  * Never interprets HTML tags.
  */
 export function parseInlineFormattedText(text: string): InlineTextSegment[] {
   if (!text) return [];
-  const normalized = normalizeWhatsAppFormatting(text);
+  const normalized = collapseNestedSameTags(normalizeWhatsAppFormatting(text));
   return parseInlineRecursive(normalized, {});
 }
 
 /**
  * Wraps or unwraps the selected range in a textarea with symmetric markers (`**`, `==`)
  * or asymmetric tags (`{c:navy}` / `{/c}`, `{h:rose}` / `{/h}`).
+ *
+ * - Keeps leading/trailing whitespace outside the formatted phrase (so double-clicking a word works cleanly).
+ * - When `replaceGroup` is `'color'` or `'highlight'`, switching to a different color/highlight
+ *   replaces the existing wrapper instead of nesting duplicate tags.
  */
 export function applyTaggedWrapFormat(
   value: string,
@@ -314,15 +342,30 @@ export function applyTaggedWrapFormat(
   selectionEnd: number,
   openTag: string,
   closeTag: string,
-  placeholder: string
+  placeholder: string,
+  replaceGroup?: 'color' | 'highlight'
 ): { nextValue: string; nextStart: number; nextEnd: number } {
-  const start = Math.max(0, Math.min(selectionStart, value.length));
-  const end = Math.max(start, Math.min(selectionEnd, value.length));
+  let start = Math.max(0, Math.min(selectionStart, value.length));
+  let end = Math.max(start, Math.min(selectionEnd, value.length));
+
+  // Keep leading/trailing spaces outside formatting tags (e.g. double-click selects "word ")
+  if (end > start) {
+    const rawSel = value.slice(start, end);
+    const leadMatch = rawSel.match(/^[ \t]+/);
+    const trailMatch = rawSel.match(/[ \t]+$/);
+    if (leadMatch && leadMatch[0].length < rawSel.length) {
+      start += leadMatch[0].length;
+    }
+    if (trailMatch && start < end - trailMatch[0].length) {
+      end -= trailMatch[0].length;
+    }
+  }
+
   const selected = value.slice(start, end);
   const oLen = openTag.length;
   const cLen = closeTag.length;
 
-  // Toggle off if already wrapped immediately outside selection
+  // 1. Toggle off if already wrapped with the exact same tags immediately outside selection
   if (
     start >= oLen &&
     value.slice(start - oLen, start) === openTag &&
@@ -336,7 +379,7 @@ export function applyTaggedWrapFormat(
     };
   }
 
-  // Toggle off if selection itself starts and ends with openTag/closeTag
+  // 2. Toggle off if selection itself starts and ends with the exact same tags
   if (
     selected.length > oLen + cLen &&
     selected.startsWith(openTag) &&
@@ -349,6 +392,76 @@ export function applyTaggedWrapFormat(
       nextStart: start,
       nextEnd: start + unwrapped.length,
     };
+  }
+
+  // 3. If switching to another color or highlight, replace the existing same-group wrapper cleanly
+  if (replaceGroup === 'color') {
+    const before = value.slice(0, start);
+    const after = value.slice(end);
+    const outerOpen = before.match(/\{c:(?:navy|crimson|emerald|gold|purple)\}$/i);
+    if (outerOpen && after.startsWith('{/c}')) {
+      const nextBefore = before.slice(0, -outerOpen[0].length) + openTag;
+      const nextAfter = closeTag + after.slice(4);
+      return {
+        nextValue: nextBefore + selected + nextAfter,
+        nextStart: nextBefore.length,
+        nextEnd: nextBefore.length + selected.length,
+      };
+    }
+    const innerMatch = selected.match(/^\{c:(?:navy|crimson|emerald|gold|purple)\}([^]*)\{\/c\}$/i);
+    if (innerMatch) {
+      const inner = innerMatch[1];
+      const nextValue = before + openTag + inner + closeTag + after;
+      return {
+        nextValue,
+        nextStart: start + oLen,
+        nextEnd: start + oLen + inner.length,
+      };
+    }
+  }
+
+  if (replaceGroup === 'highlight') {
+    const before = value.slice(0, start);
+    const after = value.slice(end);
+    const outerTag = before.match(/\{h:(?:gold|rose|emerald|sky)\}$/i);
+    if (outerTag && after.startsWith('{/h}')) {
+      const nextBefore = before.slice(0, -outerTag[0].length) + openTag;
+      const nextAfter = closeTag + after.slice(4);
+      return {
+        nextValue: nextBefore + selected + nextAfter,
+        nextStart: nextBefore.length,
+        nextEnd: nextBefore.length + selected.length,
+      };
+    }
+    if (before.endsWith('==') && after.startsWith('==')) {
+      const nextBefore = before.slice(0, -2) + openTag;
+      const nextAfter = closeTag + after.slice(2);
+      return {
+        nextValue: nextBefore + selected + nextAfter,
+        nextStart: nextBefore.length,
+        nextEnd: nextBefore.length + selected.length,
+      };
+    }
+    const innerTag = selected.match(/^\{h:(?:gold|rose|emerald|sky)\}([^]*)\{\/h\}$/i);
+    if (innerTag) {
+      const inner = innerTag[1];
+      const nextValue = before + openTag + inner + closeTag + after;
+      return {
+        nextValue,
+        nextStart: start + oLen,
+        nextEnd: start + oLen + inner.length,
+      };
+    }
+    const innerEq = selected.match(/^==([^]*?)==$/);
+    if (innerEq) {
+      const inner = innerEq[1];
+      const nextValue = before + openTag + inner + closeTag + after;
+      return {
+        nextValue,
+        nextStart: start + oLen,
+        nextEnd: start + oLen + inner.length,
+      };
+    }
   }
 
   const inner = selected || placeholder;
