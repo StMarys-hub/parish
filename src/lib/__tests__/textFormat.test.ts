@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyTaggedWrapFormat,
   applyWrapFormat,
   cleanAnnouncementTitle,
   cleanDescriptionText,
@@ -100,5 +101,44 @@ describe('textFormat cleansing & inline formatting', () => {
         items: ['Bring your family', 'Arrive early'],
       },
     ]);
+  });
+
+  it('parses and strips parish font colors ({c:tone}) and highlight colors ({h:tone}) safely', () => {
+    const wrapped = applyTaggedWrapFormat(
+      'Deadline is Friday',
+      12,
+      18,
+      '{c:crimson}',
+      '{/c}',
+      'colored text'
+    );
+    expect(wrapped.nextValue).toBe('Deadline is {c:crimson}Friday{/c}');
+    const unwrapped = applyTaggedWrapFormat(
+      wrapped.nextValue,
+      wrapped.nextStart,
+      wrapped.nextEnd,
+      '{c:crimson}',
+      '{/c}',
+      'colored text'
+    );
+    expect(unwrapped.nextValue).toBe('Deadline is Friday');
+
+    const segments = parseInlineFormattedText(
+      'Note: {c:crimson}Cancelled{/c} — **{c:navy}8:00 AM{/c}** at {h:emerald}Parish Hall{/h} & {h:rose}**Urgent**{/h}.'
+    );
+    expect(segments).toEqual([
+      { type: 'text', value: 'Note: ' },
+      { type: 'color', tone: 'crimson', value: 'Cancelled', bold: false },
+      { type: 'text', value: ' — ' },
+      { type: 'color', tone: 'navy', value: '8:00 AM', bold: true },
+      { type: 'text', value: ' at ' },
+      { type: 'highlight', tone: 'emerald', value: 'Parish Hall' },
+      { type: 'text', value: ' & ' },
+      { type: 'bold-highlight', tone: 'rose', value: 'Urgent' },
+      { type: 'text', value: '.' },
+    ]);
+    expect(
+      stripFormattingMarkers('{c:crimson}Cancelled{/c} at {h:sky}Main Church{/h}')
+    ).toBe('Cancelled at Main Church');
   });
 });

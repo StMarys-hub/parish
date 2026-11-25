@@ -80,11 +80,14 @@ export function normalizeWhatsAppFormatting(raw: string): string {
 }
 
 /**
- * Removes inline **bold**, *whatsapp bold*, and ==highlight== markers for plain-text previews & titles.
+ * Removes inline **bold**, *whatsapp bold*, ==highlight==, {c:...}...{/c}, and {h:...}...{/h} markers
+ * for plain-text previews, search snippets, & titles.
  */
 export function stripFormattingMarkers(text: string): string {
   if (!text) return '';
   return normalizeWhatsAppFormatting(text)
+    .replace(/\{c:(?:navy|crimson|emerald|gold|purple)\}([^]*?)\{\/c\}/gi, '$1')
+    .replace(/\{h:(?:gold|rose|emerald|sky)\}([^]*?)\{\/h\}/gi, '$1')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/==([^=]+)==/g, '$1');
 }
@@ -226,15 +229,25 @@ export function parseFormattedBlocks(rawLines: string[]): FormattedBlock[] {
   return blocks;
 }
 
+export type TextColorTone = 'navy' | 'crimson' | 'emerald' | 'gold' | 'purple';
+export type HighlightColorTone = 'gold' | 'rose' | 'emerald' | 'sky';
+
 export type InlineTextSegment =
   | { type: 'text'; value: string }
   | { type: 'bold'; value: string }
-  | { type: 'highlight'; value: string }
-  | { type: 'bold-highlight'; value: string };
+  | { type: 'highlight'; value: string; tone?: HighlightColorTone }
+  | { type: 'bold-highlight'; value: string; tone?: HighlightColorTone }
+  | { type: 'color'; value: string; tone: TextColorTone; bold?: boolean };
 
-// Tokenizes ==**both**==, **==both==**, **bold**, and ==highlight== cleanly in linear time
+// Tokenizes {c:tone}...{/c}, {h:tone}...{/h}, ==**both**==, **==both==**, **bold**, and ==highlight== cleanly
 const INLINE_TOKEN_RE =
-  /(==\*\*([^*\n]+?)\*\*==|\*\*==([^=\n]+?)==\*\*|\*\*([^*\n]+?)\*\*|==([^=\n]+?)==)/g;
+  /(\*\*\{c:(navy|crimson|emerald|gold|purple)\}([^\n]+?)\{\/c\}\*\*|\{c:(navy|crimson|emerald|gold|purple)\}([^\n]+?)\{\/c\}|\*\*\{h:(gold|rose|emerald|sky)\}([^\n]+?)\{\/h\}\*\*|\{h:(gold|rose|emerald|sky)\}([^\n]+?)\{\/h\}|==\*\*([^*\n]+?)\*\*==|\*\*==([^=\n]+?)==\*\*|\*\*([^*\n]+?)\*\*|==([^=\n]+?)==)/gi;
+
+function unwrapInnerBold(raw: string): { text: string; hasBold: boolean } {
+  const m = raw.match(/^\*\*([^*\n]+?)\*\*$/);
+  if (m) return { text: m[1], hasBold: true };
+  return { text: raw.replace(/\*\*([^*\n]+?)\*\*/g, '$1'), hasBold: /\*\*[^*\n]+?\*\*/.test(raw) };
+}
 
 /**
  * Parses safe inline formatting markers into typed segments for React rendering.
@@ -252,14 +265,46 @@ export function parseInlineFormattedText(text: string): InlineTextSegment[] {
     if (match.index > lastIndex) {
       segments.push({ type: 'text', value: normalized.slice(lastIndex, match.index) });
     }
-    if (match[2] !== undefined) {
-      segments.push({ type: 'bold-highlight', value: match[2] });
-    } else if (match[3] !== undefined) {
-      segments.push({ type: 'bold-highlight', value: match[3] });
-    } else if (match[4] !== undefined) {
-      segments.push({ type: 'bold', value: match[4] });
-    } else if (match[5] !== undefined) {
-      segments.push({ type: 'highlight', value: match[5] });
+    if (match[2] !== undefined && match[3] !== undefined) {
+      // **{c:tone}text{/c}**
+      segments.push({
+        type: 'color',
+        tone: match[2].toLowerCase() as TextColorTone,
+        value: unwrapInnerBold(match[3]).text,
+        bold: true,
+      });
+    } else if (match[4] !== undefined && match[5] !== undefined) {
+      // {c:tone}text{/c} (may contain **bold**)
+      const inner = unwrapInnerBold(match[5]);
+      segments.push({
+        type: 'color',
+        tone: match[4].toLowerCase() as TextColorTone,
+        value: inner.text,
+        bold: inner.hasBold,
+      });
+    } else if (match[6] !== undefined && match[7] !== undefined) {
+      // **{h:tone}text{/h}**
+      segments.push({
+        type: 'bold-highlight',
+        tone: match[6].toLowerCase() as HighlightColorTone,
+        value: unwrapInnerBold(match[7]).text,
+      });
+    } else if (match[8] !== undefined && match[9] !== undefined) {
+      // {h:tone}text{/h} (may contain **bold**)
+      const inner = unwrapInnerBold(match[9]);
+      segments.push({
+        type: inner.hasBold ? 'bold-highlight' : 'highlight',
+        tone: match[8].toLowerCase() as HighlightColorTone,
+        value: inner.text,
+      });
+    } else if (match[10] !== undefined) {
+      segments.push({ type: 'bold-highlight', value: match[10] });
+    } else if (match[11] !== undefined) {
+      segments.push({ type: 'bold-highlight', value: match[11] });
+    } else if (match[12] !== undefined) {
+      segments.push({ type: 'bold', value: match[12] });
+    } else if (match[13] !== undefined) {
+      segments.push({ type: 'highlight', value: match[13] });
     }
     lastIndex = INLINE_TOKEN_RE.lastIndex;
   }
@@ -272,42 +317,44 @@ export function parseInlineFormattedText(text: string): InlineTextSegment[] {
 }
 
 /**
- * Wraps or unwraps the selected range in a textarea with `**` (bold) or `==` (highlight).
+ * Wraps or unwraps the selected range in a textarea with symmetric markers (`**`, `==`)
+ * or asymmetric tags (`{c:navy}` / `{/c}`, `{h:rose}` / `{/h}`).
  */
-export function applyWrapFormat(
+export function applyTaggedWrapFormat(
   value: string,
   selectionStart: number,
   selectionEnd: number,
-  marker: '**' | '==',
+  openTag: string,
+  closeTag: string,
   placeholder: string
 ): { nextValue: string; nextStart: number; nextEnd: number } {
   const start = Math.max(0, Math.min(selectionStart, value.length));
   const end = Math.max(start, Math.min(selectionEnd, value.length));
   const selected = value.slice(start, end);
-  const mLen = marker.length;
+  const oLen = openTag.length;
+  const cLen = closeTag.length;
 
   // Toggle off if already wrapped immediately outside selection
   if (
-    start >= mLen &&
-    value.slice(start - mLen, start) === marker &&
-    value.slice(end, end + mLen) === marker
+    start >= oLen &&
+    value.slice(start - oLen, start) === openTag &&
+    value.slice(end, end + cLen) === closeTag
   ) {
-    const nextValue =
-      value.slice(0, start - mLen) + selected + value.slice(end + mLen);
+    const nextValue = value.slice(0, start - oLen) + selected + value.slice(end + cLen);
     return {
       nextValue,
-      nextStart: start - mLen,
-      nextEnd: end - mLen,
+      nextStart: start - oLen,
+      nextEnd: end - oLen,
     };
   }
 
-  // Toggle off if selection itself starts and ends with marker
+  // Toggle off if selection itself starts and ends with openTag/closeTag
   if (
-    selected.length > mLen * 2 &&
-    selected.startsWith(marker) &&
-    selected.endsWith(marker)
+    selected.length > oLen + cLen &&
+    selected.startsWith(openTag) &&
+    selected.endsWith(closeTag)
   ) {
-    const unwrapped = selected.slice(mLen, -mLen);
+    const unwrapped = selected.slice(oLen, -cLen);
     const nextValue = value.slice(0, start) + unwrapped + value.slice(end);
     return {
       nextValue,
@@ -317,11 +364,24 @@ export function applyWrapFormat(
   }
 
   const inner = selected || placeholder;
-  const wrapped = `${marker}${inner}${marker}`;
+  const wrapped = `${openTag}${inner}${closeTag}`;
   const nextValue = value.slice(0, start) + wrapped + value.slice(end);
   return {
     nextValue,
-    nextStart: start + mLen,
-    nextEnd: start + mLen + inner.length,
+    nextStart: start + oLen,
+    nextEnd: start + oLen + inner.length,
   };
+}
+
+/**
+ * Wraps or unwraps the selected range in a textarea with `**` (bold) or `==` (highlight).
+ */
+export function applyWrapFormat(
+  value: string,
+  selectionStart: number,
+  selectionEnd: number,
+  marker: '**' | '==',
+  placeholder: string
+): { nextValue: string; nextStart: number; nextEnd: number } {
+  return applyTaggedWrapFormat(value, selectionStart, selectionEnd, marker, marker, placeholder);
 }

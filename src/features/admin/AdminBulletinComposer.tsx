@@ -1295,9 +1295,10 @@ export function AdminBulletinComposer({
               <code className="rounded bg-white px-1 py-0.5">General &amp; Parish</code>.
             </li>
             <li>
-              <strong>Bold &amp; Highlight in Descriptions:</strong> In <strong>Card Editor</strong>, select any phrase in a description and tap{' '}
-              <strong>Bold</strong> (<code className="rounded bg-white px-1 py-0.5">**text**</code> / <kbd className="rounded border bg-white px-1">Ctrl+B</kbd>) or{' '}
-              <strong>Highlight</strong> (<code className="rounded bg-white px-1 py-0.5">==text==</code> / <kbd className="rounded border bg-white px-1">Ctrl+Shift+H</kbd>).
+              <strong>Bold, Text Color &amp; Highlight:</strong> In <strong>Card Editor</strong>, select any phrase in a description and tap{' '}
+              <strong>Bold</strong> (<kbd className="rounded border bg-white px-1">Ctrl+B</kbd>),{' '}
+              <strong>Text Color</strong> (Parish Navy, Urgent Red, Green, Gold, Purple), or{' '}
+              <strong>Highlight</strong> (Gold, Urgent Rose, Soft Green, Info Blue — <kbd className="rounded border bg-white px-1">Ctrl+Shift+H</kbd>).
             </li>
             <li>
               <strong>Collection, Calendar &amp; Links:</strong> Include{' '}
