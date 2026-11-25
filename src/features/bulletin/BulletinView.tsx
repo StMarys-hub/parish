@@ -21,6 +21,7 @@ import { CollapsibleAnnouncementCard } from '../../components/CollapsibleAnnounc
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { FlyerLightbox } from '../../components/FlyerLightbox';
 import { FormattedRichBlocks } from '../../components/FormattedText';
+import { InAppWebViewerModal } from '../../components/InAppWebViewerModal';
 import { ScrollablePillBar } from '../../components/ScrollablePillBar';
 import { SpecialNoticeBody } from '../../components/SpecialNoticeBody';
 import { PHASE_FLAGS } from '../../config/features';
@@ -117,6 +118,7 @@ export function BulletinView({
     url: string;
     mimeType?: string | null;
   } | null>(null);
+  const [webViewer, setWebViewer] = useState<{ title: string; url: string } | null>(null);
   const [reactions, setReactions] = useState<ReactionMap>({});
   const { isUnread, markRead, markManyRead, resetAllRead } = useReadAnnouncements();
 
@@ -1399,14 +1401,18 @@ export function BulletinView({
             </a>
           )}
           {sanitizeActionUrl(activeBulletin.sign_off.website) && (
-            <a
-              href={activeBulletin.sign_off.website}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-parish-navy underline"
+            <button
+              type="button"
+              onClick={() =>
+                setWebViewer({
+                  title: "St. Mary's Official Website",
+                  url: sanitizeActionUrl(activeBulletin.sign_off.website)!,
+                })
+              }
+              className="font-medium text-parish-navy underline hover:opacity-80"
             >
               stmarysyroclt.org
-            </a>
+            </button>
           )}
         </div>
       </footer>
@@ -1417,6 +1423,13 @@ export function BulletinView({
         url={lightboxFlyer?.url ?? ''}
         mimeType={lightboxFlyer?.mimeType}
         onClose={() => setLightboxFlyer(null)}
+      />
+
+      <InAppWebViewerModal
+        isOpen={Boolean(webViewer)}
+        title={webViewer?.title ?? ''}
+        url={webViewer?.url ?? ''}
+        onClose={() => setWebViewer(null)}
       />
     </div>
   );

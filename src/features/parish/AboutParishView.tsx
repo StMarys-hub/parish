@@ -18,6 +18,7 @@ import {
   Video,
   Wrench,
 } from 'lucide-react';
+import { InAppWebViewerModal } from '../../components/InAppWebViewerModal';
 import { PHASE_FLAGS } from '../../config/features';
 import { sanitizeActionUrl } from '../../lib/sanitize';
 import {
@@ -60,6 +61,7 @@ export function AboutParishView({
 }: AboutParishViewProps) {
   const [segment, setSegment] = useState<ParishSegment>(initialSegment);
   const [textScale, setTextScale] = useState<TextScaleLevel>(() => getStoredTextScale());
+  const [webViewer, setWebViewer] = useState<{ title: string; url: string } | null>(null);
 
   useEffect(() => {
     setSegment(initialSegment);
@@ -198,42 +200,46 @@ export function AboutParishView({
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <a
-                href={OFFICIAL_LITURGICAL_BOOKS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl border border-parish-border bg-parish-canvas/75 px-3 py-2 text-xs font-semibold text-parish-navy hover:bg-parish-canvas"
+              <button
+                type="button"
+                onClick={() =>
+                  setWebViewer({ title: 'Liturgical Books', url: OFFICIAL_LITURGICAL_BOOKS_URL })
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-parish-border bg-parish-canvas/75 px-3 py-2 text-left text-xs font-semibold text-parish-navy hover:bg-parish-canvas"
               >
                 <BookOpen className="h-3.5 w-3.5 shrink-0 text-parish-gold" />
                 <span className="truncate">Liturgical Books</span>
-              </a>
-              <a
-                href={OFFICIAL_SACRAMENTS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl border border-parish-border bg-parish-canvas/75 px-3 py-2 text-xs font-semibold text-parish-navy hover:bg-parish-canvas"
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setWebViewer({ title: 'Sacraments', url: OFFICIAL_SACRAMENTS_URL })
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-parish-border bg-parish-canvas/75 px-3 py-2 text-left text-xs font-semibold text-parish-navy hover:bg-parish-canvas"
               >
                 <Landmark className="h-3.5 w-3.5 shrink-0 text-parish-gold" />
                 <span className="truncate">Sacraments</span>
-              </a>
-              <a
-                href={OFFICIAL_MINISTRIES_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl border border-parish-border bg-parish-canvas/75 px-3 py-2 text-xs font-semibold text-parish-navy hover:bg-parish-canvas"
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setWebViewer({ title: 'Parish Ministries', url: OFFICIAL_MINISTRIES_URL })
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-parish-border bg-parish-canvas/75 px-3 py-2 text-left text-xs font-semibold text-parish-navy hover:bg-parish-canvas"
               >
                 <Users className="h-3.5 w-3.5 shrink-0 text-parish-gold" />
                 <span className="truncate">Ministries</span>
-              </a>
-              <a
-                href={OFFICIAL_HISTORY_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl border border-parish-border bg-parish-canvas/75 px-3 py-2 text-xs font-semibold text-parish-navy hover:bg-parish-canvas"
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setWebViewer({ title: 'Parish History', url: OFFICIAL_HISTORY_URL })
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-parish-border bg-parish-canvas/75 px-3 py-2 text-left text-xs font-semibold text-parish-navy hover:bg-parish-canvas"
               >
                 <Info className="h-3.5 w-3.5 shrink-0 text-parish-gold" />
                 <span className="truncate">Parish History</span>
-              </a>
+              </button>
               <a
                 href={OFFICIAL_YOUTUBE_URL}
                 target="_blank"
@@ -306,15 +312,16 @@ export function AboutParishView({
               </p>
             )}
             {safeWebsiteUrl && (
-              <a
-                href={safeWebsiteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-parish-navy underline"
+              <button
+                type="button"
+                onClick={() =>
+                  setWebViewer({ title: info.parish_name, url: safeWebsiteUrl })
+                }
+                className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-parish-navy underline hover:opacity-80"
               >
                 <Globe className="h-3.5 w-3.5" />
                 Visit Official Website ({info.website_url})
-              </a>
+              </button>
             )}
           </section>
         </div>
@@ -433,6 +440,12 @@ export function AboutParishView({
           </div>
         </div>
       )}
+      <InAppWebViewerModal
+        isOpen={Boolean(webViewer)}
+        title={webViewer?.title ?? ''}
+        url={webViewer?.url ?? ''}
+        onClose={() => setWebViewer(null)}
+      />
     </div>
   );
 }
