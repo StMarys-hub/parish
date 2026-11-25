@@ -108,7 +108,7 @@ export function FormattedRichBlocks({ lines, className = '' }: FormattedRichBloc
                   : 'border-l-parish-navy bg-parish-canvas/90 text-parish-navy'
               }`}
             >
-              {block.text}
+              <FormattedText text={block.text} />
             </div>
           );
         }

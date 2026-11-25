@@ -239,93 +239,101 @@ export interface InlineTextSegment {
   highlight?: HighlightColorTone;
 }
 
-// Matches the next outermost inline token; supports arbitrary nesting of bold, color, and highlight
-const NESTED_INLINE_TOKEN_RE =
-  /\{c:(navy|crimson|emerald|gold|purple)\}([^\n]+?)\{\/c\}|\{h:(gold|rose|emerald|sky)\}([^\n]+?)\{\/h\}|==([^=\n]+?)==|\*\*([^*\n]+?)\*\*/gi;
+// Stack-based inline tokenizer: handles arbitrary nesting & ordering of
+// **bold**, ==highlight==, {c:tone}...{/c}, and {h:tone}...{/h} without ever leaking raw tags.
+const INLINE_SCAN_RE =
+  /\{c:(navy|crimson|emerald|gold|purple)\}|\{\/c\}|\{h:(gold|rose|emerald|sky)\}|\{\/h\}|\*\*|==/gi;
 
-function parseInlineRecursive(
-  input: string,
-  inherited: { bold?: boolean; color?: TextColorTone; highlight?: HighlightColorTone },
-  depth = 0
-): InlineTextSegment[] {
-  if (!input) return [];
-  if (depth > 6) {
-    return [{ value: input, ...inherited }];
-  }
-
+/**
+ * Parses safe inline formatting markers into typed segments for React rendering.
+ * Supports arbitrary nesting and ordering of **bold**, ==highlight==, {c:tone}...{/c}, and {h:tone}...{/h}.
+ * Never interprets HTML tags and never leaks raw tag syntax.
+ */
+export function parseInlineFormattedText(text: string): InlineTextSegment[] {
+  if (!text) return [];
+  const input = normalizeWhatsAppFormatting(text);
   const segments: InlineTextSegment[] = [];
-  const regex = new RegExp(NESTED_INLINE_TOKEN_RE.source, 'gi');
+
+  const colorStack: TextColorTone[] = [];
+  const highlightStack: HighlightColorTone[] = [];
+  let bold = false;
+  let eqHighlight = false;
+
+  const pushText = (chunk: string) => {
+    if (!chunk) return;
+    const color = colorStack.length > 0 ? colorStack[colorStack.length - 1] : undefined;
+    const highlight =
+      highlightStack.length > 0
+        ? highlightStack[highlightStack.length - 1]
+        : eqHighlight
+          ? 'gold'
+          : undefined;
+
+    const seg: InlineTextSegment = { value: chunk };
+    if (bold) seg.bold = true;
+    if (color) seg.color = color;
+    if (highlight) seg.highlight = highlight;
+
+    // Merge adjacent segments with identical styling
+    const prev = segments[segments.length - 1];
+    if (
+      prev &&
+      Boolean(prev.bold) === Boolean(seg.bold) &&
+      prev.color === seg.color &&
+      prev.highlight === seg.highlight
+    ) {
+      prev.value += seg.value;
+    } else {
+      segments.push(seg);
+    }
+  };
+
+  const regex = new RegExp(INLINE_SCAN_RE.source, 'gi');
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(input)) !== null) {
     if (match.index > lastIndex) {
-      segments.push({ value: input.slice(lastIndex, match.index), ...inherited });
+      pushText(input.slice(lastIndex, match.index));
     }
 
-    if (match[1] !== undefined && match[2] !== undefined) {
-      const tone = match[1].toLowerCase() as TextColorTone;
-      segments.push(...parseInlineRecursive(match[2], { ...inherited, color: tone }, depth + 1));
-    } else if (match[3] !== undefined && match[4] !== undefined) {
-      const tone = match[3].toLowerCase() as HighlightColorTone;
-      segments.push(
-        ...parseInlineRecursive(match[4], { ...inherited, highlight: tone }, depth + 1)
-      );
-    } else if (match[5] !== undefined) {
-      segments.push(
-        ...parseInlineRecursive(
-          match[5],
-          { ...inherited, highlight: inherited.highlight ?? 'gold' },
-          depth + 1
-        )
-      );
-    } else if (match[6] !== undefined) {
-      segments.push(...parseInlineRecursive(match[6], { ...inherited, bold: true }, depth + 1));
+    const token = match[0];
+    const lower = token.toLowerCase();
+
+    if (match[1] !== undefined) {
+      colorStack.push(match[1].toLowerCase() as TextColorTone);
+    } else if (lower === '{/c}') {
+      if (colorStack.length > 0) colorStack.pop();
+    } else if (match[2] !== undefined) {
+      highlightStack.push(match[2].toLowerCase() as HighlightColorTone);
+    } else if (lower === '{/h}') {
+      if (highlightStack.length > 0) highlightStack.pop();
+    } else if (token === '**') {
+      if (bold) {
+        bold = false;
+      } else if (input.indexOf('**', regex.lastIndex) !== -1) {
+        bold = true;
+      } else {
+        pushText(token);
+      }
+    } else if (token === '==') {
+      if (eqHighlight) {
+        eqHighlight = false;
+      } else if (input.indexOf('==', regex.lastIndex) !== -1) {
+        eqHighlight = true;
+      } else {
+        pushText(token);
+      }
     }
 
     lastIndex = regex.lastIndex;
   }
 
   if (lastIndex < input.length) {
-    segments.push({ value: input.slice(lastIndex), ...inherited });
+    pushText(input.slice(lastIndex));
   }
 
   return segments;
-}
-
-/**
- * Collapses accidentally nested same-type color/highlight tags (e.g. `{c:navy}{c:crimson}Hi{/c}{/c}` -> `{c:crimson}Hi{/c}`)
- * so inner user intent always wins and no stray closing tags leak into rendered text.
- */
-function collapseNestedSameTags(input: string): string {
-  let out = input;
-  let prev = '';
-  let guard = 0;
-  while (out !== prev && guard < 6) {
-    prev = out;
-    guard++;
-    out = out
-      .replace(
-        /\{c:(?:navy|crimson|emerald|gold|purple)\}\s*(\{c:(?:navy|crimson|emerald|gold|purple)\}[^\n]*?\{\/c\})\s*\{\/c\}/gi,
-        '$1'
-      )
-      .replace(
-        /\{h:(?:gold|rose|emerald|sky)\}\s*(\{h:(?:gold|rose|emerald|sky)\}[^\n]*?\{\/h\})\s*\{\/h\}/gi,
-        '$1'
-      );
-  }
-  return out;
-}
-
-/**
- * Parses safe inline formatting markers into typed segments for React rendering.
- * Supports arbitrary nesting of **bold**, ==highlight==, {c:tone}...{/c}, and {h:tone}...{/h}.
- * Never interprets HTML tags.
- */
-export function parseInlineFormattedText(text: string): InlineTextSegment[] {
-  if (!text) return [];
-  const normalized = collapseNestedSameTags(normalizeWhatsAppFormatting(text));
-  return parseInlineRecursive(normalized, {});
 }
 
 /**
@@ -464,7 +472,12 @@ export function applyTaggedWrapFormat(
     }
   }
 
-  const inner = selected || placeholder;
+  let inner = selected || placeholder;
+  if (replaceGroup === 'color') {
+    inner = inner.replace(/\{c:(?:navy|crimson|emerald|gold|purple)\}|\{\/c\}/gi, '');
+  } else if (replaceGroup === 'highlight') {
+    inner = inner.replace(/\{h:(?:gold|rose|emerald|sky)\}|\{\/h\}|==/gi, '');
+  }
   const wrapped = `${openTag}${inner}${closeTag}`;
   const nextValue = value.slice(0, start) + wrapped + value.slice(end);
   return {

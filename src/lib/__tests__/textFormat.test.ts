@@ -164,13 +164,22 @@ describe('textFormat cleansing & inline formatting', () => {
     );
     expect(switchedColor.nextValue).toBe('Today is {c:crimson}Friendsgiving{/c} potluck');
 
-    // Legacy accidentally nested same-type tags collapse cleanly on display
+    // Legacy accidentally nested same-type tags (even with ** in between!) render cleanly
     expect(
       parseInlineFormattedText('Today, there will be a {c:navy}{c:crimson}Friendsgiving {/c}{/c}potluck')
     ).toEqual([
       { value: 'Today, there will be a ' },
       { value: 'Friendsgiving ', color: 'crimson' },
       { value: 'potluck' },
+    ]);
+
+    expect(
+      parseInlineFormattedText(
+        '{c:emerald}**{c:purple}Solemn Holy Communion classes{/c}**{/c} will begin in January'
+      )
+    ).toEqual([
+      { value: 'Solemn Holy Communion classes', bold: true, color: 'purple' },
+      { value: ' will begin in January' },
     ]);
   });
 });
