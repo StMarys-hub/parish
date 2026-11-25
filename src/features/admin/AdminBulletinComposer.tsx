@@ -1107,7 +1107,7 @@ export function AdminBulletinComposer({
             <div className="flex items-center justify-between border-b border-parish-border bg-white/95 px-4 py-2.5">
               <div className="flex items-center gap-2 min-w-0">
                 <img
-                  src="/favicon.svg"
+                  src="/pwa-192x192.png"
                   alt=""
                   width={26}
                   height={26}

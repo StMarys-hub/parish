@@ -186,11 +186,11 @@ export function App() {
             className="flex items-center gap-3 text-left"
           >
             <img
-              src="/favicon.svg"
-              alt="St. Mary's Cross Emblem"
+              src="/pwa-192x192.png"
+              alt="St. Mary's Syro-Malabar Catholic Church Emblem"
               width={36}
               height={36}
-              className="h-9 w-9 shrink-0 rounded-xl"
+              className="h-9 w-9 shrink-0 rounded-xl shadow-2xs"
             />
             <div className="min-w-0">
               <h1 className="truncate font-serif text-sm font-bold text-parish-navy sm:text-base">

@@ -12,7 +12,7 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.ts',
       registerType: 'autoUpdate',
-      includeAssets: ['apple-touch-icon.png', 'badge-72x72.png', 'favicon.svg'],
+      includeAssets: ['apple-touch-icon.png', 'badge-72x72.png', 'favicon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: "St. Mary's Syro-Malabar Parish",
         short_name: "St. Mary's",
