@@ -42,13 +42,13 @@ describe('textFormat cleansing & inline formatting', () => {
       'Arrive by **6:30 PM** at ==Main Church== for ==**Solemn Qurbana**==.'
     );
     expect(segments).toEqual([
-      { type: 'text', value: 'Arrive by ' },
-      { type: 'bold', value: '6:30 PM' },
-      { type: 'text', value: ' at ' },
-      { type: 'highlight', value: 'Main Church' },
-      { type: 'text', value: ' for ' },
-      { type: 'bold-highlight', value: 'Solemn Qurbana' },
-      { type: 'text', value: '.' },
+      { value: 'Arrive by ' },
+      { value: '6:30 PM', bold: true },
+      { value: ' at ' },
+      { value: 'Main Church', highlight: 'gold' },
+      { value: ' for ' },
+      { value: 'Solemn Qurbana', bold: true, highlight: 'gold' },
+      { value: '.' },
     ]);
     expect(stripFormattingMarkers('**6:30 PM** at ==Main Church==')).toBe('6:30 PM at Main Church');
   });
@@ -124,18 +124,18 @@ describe('textFormat cleansing & inline formatting', () => {
     expect(unwrapped.nextValue).toBe('Deadline is Friday');
 
     const segments = parseInlineFormattedText(
-      'Note: {c:crimson}Cancelled{/c} — **{c:navy}8:00 AM{/c}** at {h:emerald}Parish Hall{/h} & {h:rose}**Urgent**{/h}.'
+      'Note: {c:crimson}Cancelled{/c} — **{c:emerald}{h:sky}Thanksgiving day{/h}{/c}** at {h:emerald}Parish Hall{/h} & {h:rose}**Urgent**{/h}.'
     );
     expect(segments).toEqual([
-      { type: 'text', value: 'Note: ' },
-      { type: 'color', tone: 'crimson', value: 'Cancelled', bold: false },
-      { type: 'text', value: ' — ' },
-      { type: 'color', tone: 'navy', value: '8:00 AM', bold: true },
-      { type: 'text', value: ' at ' },
-      { type: 'highlight', tone: 'emerald', value: 'Parish Hall' },
-      { type: 'text', value: ' & ' },
-      { type: 'bold-highlight', tone: 'rose', value: 'Urgent' },
-      { type: 'text', value: '.' },
+      { value: 'Note: ' },
+      { value: 'Cancelled', color: 'crimson' },
+      { value: ' — ' },
+      { value: 'Thanksgiving day', bold: true, color: 'emerald', highlight: 'sky' },
+      { value: ' at ' },
+      { value: 'Parish Hall', highlight: 'emerald' },
+      { value: ' & ' },
+      { value: 'Urgent', bold: true, highlight: 'rose' },
+      { value: '.' },
     ]);
     expect(
       stripFormattingMarkers('{c:crimson}Cancelled{/c} at {h:sky}Main Church{/h}')

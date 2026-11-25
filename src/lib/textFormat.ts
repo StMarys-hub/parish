@@ -232,88 +232,76 @@ export function parseFormattedBlocks(rawLines: string[]): FormattedBlock[] {
 export type TextColorTone = 'navy' | 'crimson' | 'emerald' | 'gold' | 'purple';
 export type HighlightColorTone = 'gold' | 'rose' | 'emerald' | 'sky';
 
-export type InlineTextSegment =
-  | { type: 'text'; value: string }
-  | { type: 'bold'; value: string }
-  | { type: 'highlight'; value: string; tone?: HighlightColorTone }
-  | { type: 'bold-highlight'; value: string; tone?: HighlightColorTone }
-  | { type: 'color'; value: string; tone: TextColorTone; bold?: boolean };
+export interface InlineTextSegment {
+  value: string;
+  bold?: boolean;
+  color?: TextColorTone;
+  highlight?: HighlightColorTone;
+}
 
-// Tokenizes {c:tone}...{/c}, {h:tone}...{/h}, ==**both**==, **==both==**, **bold**, and ==highlight== cleanly
-const INLINE_TOKEN_RE =
-  /(\*\*\{c:(navy|crimson|emerald|gold|purple)\}([^\n]+?)\{\/c\}\*\*|\{c:(navy|crimson|emerald|gold|purple)\}([^\n]+?)\{\/c\}|\*\*\{h:(gold|rose|emerald|sky)\}([^\n]+?)\{\/h\}\*\*|\{h:(gold|rose|emerald|sky)\}([^\n]+?)\{\/h\}|==\*\*([^*\n]+?)\*\*==|\*\*==([^=\n]+?)==\*\*|\*\*([^*\n]+?)\*\*|==([^=\n]+?)==)/gi;
+// Matches the next outermost inline token; supports arbitrary nesting of bold, color, and highlight
+const NESTED_INLINE_TOKEN_RE =
+  /\{c:(navy|crimson|emerald|gold|purple)\}([^\n]+?)\{\/c\}|\{h:(gold|rose|emerald|sky)\}([^\n]+?)\{\/h\}|==([^=\n]+?)==|\*\*([^*\n]+?)\*\*/gi;
 
-function unwrapInnerBold(raw: string): { text: string; hasBold: boolean } {
-  const m = raw.match(/^\*\*([^*\n]+?)\*\*$/);
-  if (m) return { text: m[1], hasBold: true };
-  return { text: raw.replace(/\*\*([^*\n]+?)\*\*/g, '$1'), hasBold: /\*\*[^*\n]+?\*\*/.test(raw) };
+function parseInlineRecursive(
+  input: string,
+  inherited: { bold?: boolean; color?: TextColorTone; highlight?: HighlightColorTone },
+  depth = 0
+): InlineTextSegment[] {
+  if (!input) return [];
+  if (depth > 6) {
+    return [{ value: input, ...inherited }];
+  }
+
+  const segments: InlineTextSegment[] = [];
+  const regex = new RegExp(NESTED_INLINE_TOKEN_RE.source, 'gi');
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(input)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ value: input.slice(lastIndex, match.index), ...inherited });
+    }
+
+    if (match[1] !== undefined && match[2] !== undefined) {
+      const tone = match[1].toLowerCase() as TextColorTone;
+      segments.push(...parseInlineRecursive(match[2], { ...inherited, color: tone }, depth + 1));
+    } else if (match[3] !== undefined && match[4] !== undefined) {
+      const tone = match[3].toLowerCase() as HighlightColorTone;
+      segments.push(
+        ...parseInlineRecursive(match[4], { ...inherited, highlight: tone }, depth + 1)
+      );
+    } else if (match[5] !== undefined) {
+      segments.push(
+        ...parseInlineRecursive(
+          match[5],
+          { ...inherited, highlight: inherited.highlight ?? 'gold' },
+          depth + 1
+        )
+      );
+    } else if (match[6] !== undefined) {
+      segments.push(...parseInlineRecursive(match[6], { ...inherited, bold: true }, depth + 1));
+    }
+
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < input.length) {
+    segments.push({ value: input.slice(lastIndex), ...inherited });
+  }
+
+  return segments;
 }
 
 /**
  * Parses safe inline formatting markers into typed segments for React rendering.
+ * Supports arbitrary nesting of **bold**, ==highlight==, {c:tone}...{/c}, and {h:tone}...{/h}.
  * Never interprets HTML tags.
  */
 export function parseInlineFormattedText(text: string): InlineTextSegment[] {
   if (!text) return [];
   const normalized = normalizeWhatsAppFormatting(text);
-  const segments: InlineTextSegment[] = [];
-  let lastIndex = 0;
-
-  INLINE_TOKEN_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = INLINE_TOKEN_RE.exec(normalized)) !== null) {
-    if (match.index > lastIndex) {
-      segments.push({ type: 'text', value: normalized.slice(lastIndex, match.index) });
-    }
-    if (match[2] !== undefined && match[3] !== undefined) {
-      // **{c:tone}text{/c}**
-      segments.push({
-        type: 'color',
-        tone: match[2].toLowerCase() as TextColorTone,
-        value: unwrapInnerBold(match[3]).text,
-        bold: true,
-      });
-    } else if (match[4] !== undefined && match[5] !== undefined) {
-      // {c:tone}text{/c} (may contain **bold**)
-      const inner = unwrapInnerBold(match[5]);
-      segments.push({
-        type: 'color',
-        tone: match[4].toLowerCase() as TextColorTone,
-        value: inner.text,
-        bold: inner.hasBold,
-      });
-    } else if (match[6] !== undefined && match[7] !== undefined) {
-      // **{h:tone}text{/h}**
-      segments.push({
-        type: 'bold-highlight',
-        tone: match[6].toLowerCase() as HighlightColorTone,
-        value: unwrapInnerBold(match[7]).text,
-      });
-    } else if (match[8] !== undefined && match[9] !== undefined) {
-      // {h:tone}text{/h} (may contain **bold**)
-      const inner = unwrapInnerBold(match[9]);
-      segments.push({
-        type: inner.hasBold ? 'bold-highlight' : 'highlight',
-        tone: match[8].toLowerCase() as HighlightColorTone,
-        value: inner.text,
-      });
-    } else if (match[10] !== undefined) {
-      segments.push({ type: 'bold-highlight', value: match[10] });
-    } else if (match[11] !== undefined) {
-      segments.push({ type: 'bold-highlight', value: match[11] });
-    } else if (match[12] !== undefined) {
-      segments.push({ type: 'bold', value: match[12] });
-    } else if (match[13] !== undefined) {
-      segments.push({ type: 'highlight', value: match[13] });
-    }
-    lastIndex = INLINE_TOKEN_RE.lastIndex;
-  }
-
-  if (lastIndex < normalized.length) {
-    segments.push({ type: 'text', value: normalized.slice(lastIndex) });
-  }
-
-  return segments;
+  return parseInlineRecursive(normalized, {});
 }
 
 /**

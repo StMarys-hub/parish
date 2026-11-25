@@ -18,16 +18,23 @@ const TEXT_COLOR_CLASSES: Record<TextColorTone, string> = {
   purple: 'text-purple-800',
 };
 
-const HIGHLIGHT_COLOR_CLASSES: Record<HighlightColorTone, string> = {
-  gold: 'bg-parish-gold-soft text-parish-gold-ink',
-  rose: 'bg-rose-100 text-rose-900',
-  emerald: 'bg-emerald-100 text-emerald-900',
-  sky: 'bg-sky-100 text-sky-900',
+const HIGHLIGHT_BG_CLASSES: Record<HighlightColorTone, string> = {
+  gold: 'bg-parish-gold-soft',
+  rose: 'bg-rose-100',
+  emerald: 'bg-emerald-100',
+  sky: 'bg-sky-100',
+};
+
+const HIGHLIGHT_DEFAULT_TEXT_CLASSES: Record<HighlightColorTone, string> = {
+  gold: 'text-parish-gold-ink',
+  rose: 'text-rose-900',
+  emerald: 'text-emerald-900',
+  sky: 'text-sky-900',
 };
 
 /**
  * Renders announcement/notice descriptions with safe inline **bold**, ==highlight==,
- * font colors ({c:tone}...{/c}), and highlight colors ({h:tone}...{/h}).
+ * font colors ({c:tone}...{/c}), and highlight colors ({h:tone}...{/h}) — including any nested combination.
  * Pure React JSX rendering (zero dangerouslySetInnerHTML).
  */
 export function FormattedText({ text }: FormattedTextProps) {
@@ -37,37 +44,33 @@ export function FormattedText({ text }: FormattedTextProps) {
   return (
     <>
       {segments.map((seg, idx) => {
-        if (seg.type === 'bold') {
+        if (seg.highlight) {
+          const bgClass = HIGHLIGHT_BG_CLASSES[seg.highlight];
+          const textClass = seg.color
+            ? TEXT_COLOR_CLASSES[seg.color]
+            : HIGHLIGHT_DEFAULT_TEXT_CLASSES[seg.highlight];
+          const weightClass = seg.bold ? 'font-bold' : seg.color ? 'font-semibold' : 'font-medium';
           return (
-            <strong key={idx} className="font-bold text-parish-ink">
+            <mark key={idx} className={`rounded px-1 py-0.5 ${bgClass} ${textClass} ${weightClass}`}>
               {seg.value}
-            </strong>
+            </mark>
           );
         }
-        if (seg.type === 'color') {
+        if (seg.color) {
           return (
             <span
               key={idx}
-              className={`${TEXT_COLOR_CLASSES[seg.tone]} ${seg.bold ? 'font-bold' : 'font-semibold'}`}
+              className={`${TEXT_COLOR_CLASSES[seg.color]} ${seg.bold ? 'font-bold' : 'font-semibold'}`}
             >
               {seg.value}
             </span>
           );
         }
-        if (seg.type === 'highlight') {
-          const toneClass = HIGHLIGHT_COLOR_CLASSES[seg.tone ?? 'gold'];
+        if (seg.bold) {
           return (
-            <mark key={idx} className={`rounded px-1 py-0.5 font-medium ${toneClass}`}>
+            <strong key={idx} className="font-bold text-parish-ink">
               {seg.value}
-            </mark>
-          );
-        }
-        if (seg.type === 'bold-highlight') {
-          const toneClass = HIGHLIGHT_COLOR_CLASSES[seg.tone ?? 'gold'];
-          return (
-            <mark key={idx} className={`rounded px-1 py-0.5 font-bold ${toneClass}`}>
-              {seg.value}
-            </mark>
+            </strong>
           );
         }
         return <Fragment key={idx}>{seg.value}</Fragment>;
