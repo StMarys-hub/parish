@@ -19,6 +19,7 @@ import {
 import { FormattedTextarea } from '../../components/FormattedTextarea';
 import { HelpGuideModal } from '../../components/HelpGuideModal';
 import { SpecialNoticeBody } from '../../components/SpecialNoticeBody';
+import { TITLE_COLOR_TEXT_CLASSES, TitleColorPicker } from '../../components/TitleColorPicker';
 import { UnreadDotBadge } from '../../components/UnreadDotBadge';
 import { parseVicarMessage } from '../../lib/vicarMessageParser';
 import { sanitizeActionUrl, sanitizePlainText } from '../../lib/sanitize';
@@ -32,6 +33,7 @@ import {
   upsertSpecialAnnouncement,
 } from '../../services/phase3Repository';
 import {
+  CardTitleColor,
   SpecialAnnouncement,
   SpecialNoticeCategory,
   SpecialNoticeStructuredBlocks,
@@ -146,6 +148,7 @@ export function SpecialAnnouncementComposer({
   const [rawPaste, setRawPaste] = useState('');
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [title, setTitle] = useState('');
+  const [titleColor, setTitleColor] = useState<CardTitleColor | null>(null);
   const [categoryBadge, setCategoryBadge] = useState<SpecialNoticeCategory>('Vicar Note');
   const [summaryPreview, setSummaryPreview] = useState('');
   const [signOff, setSignOff] = useState('Rajeev Achan');
@@ -274,6 +277,7 @@ export function SpecialAnnouncementComposer({
     setEditingId(undefined);
     setRawPaste('');
     setTitle('');
+    setTitleColor(null);
     setCategoryBadge('Vicar Note');
     setSummaryPreview('');
     setSignOff('Rajeev Achan');
@@ -316,6 +320,7 @@ export function SpecialAnnouncementComposer({
     setEventTime('');
     setRawPaste(item.raw_message || item.description || '');
     setTitle(item.title);
+    setTitleColor(item.structured_blocks?.titleColor ?? null);
     setCategoryBadge(item.category_badge ?? 'Vicar Note');
     setSummaryPreview(item.summary_preview || item.description.slice(0, 140));
     setSignOff(item.sign_off || 'Rajeev Achan');
@@ -369,6 +374,7 @@ export function SpecialAnnouncementComposer({
         ...structuredBlocks,
         eventDateLabel: eventDateLabel.trim() ? sanitizePlainText(eventDateLabel) : null,
         locationLabel: locationLabel.trim() ? sanitizePlainText(locationLabel) : null,
+        titleColor,
       };
 
       const isNewPublish = !editingId;
@@ -479,7 +485,7 @@ export function SpecialAnnouncementComposer({
     category_badge: categoryBadge,
     summary_preview: summaryPreview || 'Collapsed summary line appears cleanly here without raw URLs.',
     raw_message: rawPaste,
-    structured_blocks: structuredBlocks,
+    structured_blocks: { ...structuredBlocks, titleColor },
     sign_off: signOff || 'Rajeev Achan',
     description: description || rawPaste,
     event_date_label: eventDateLabel || null,
@@ -611,7 +617,13 @@ export function SpecialAnnouncementComposer({
                     )}
                     <UnreadDotBadge unread showNewPill />
                   </div>
-                  <h4 className="text-sm font-bold text-[#1E293B]">{previewNotice.title}</h4>
+                  <h4
+                    className={`text-sm font-bold ${
+                      titleColor ? TITLE_COLOR_TEXT_CLASSES[titleColor] : 'text-[#1E293B]'
+                    }`}
+                  >
+                    {previewNotice.title}
+                  </h4>
                   {!previewExpanded && (
                     <p className="truncate text-xs text-[#526071]">{previewNotice.summary_preview}</p>
                   )}
@@ -643,8 +655,13 @@ export function SpecialAnnouncementComposer({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g., Sunday May 24 — Pentecost Sunday"
-                className="mt-1 w-full rounded-lg border border-[#E7E2DA] px-3 py-2 text-sm"
+                className={`mt-1 w-full rounded-lg border border-[#E7E2DA] px-3 py-2 text-sm font-semibold ${
+                  titleColor ? TITLE_COLOR_TEXT_CLASSES[titleColor] : 'text-[#1E293B]'
+                }`}
               />
+              <div className="mt-1.5">
+                <TitleColorPicker value={titleColor} onChange={setTitleColor} />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#526071]">Category Badge</label>

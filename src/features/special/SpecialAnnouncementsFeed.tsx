@@ -151,6 +151,7 @@ export function SpecialAnnouncementsFeed({
         key={item.id}
         id={item.id}
         title={item.title}
+        titleColor={item.structured_blocks?.titleColor}
         previewText={previewText}
         categoryLabel={categoryLabel}
         featuredLabel={item.is_pinned ? 'Pinned' : undefined}

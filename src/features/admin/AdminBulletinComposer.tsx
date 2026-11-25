@@ -21,6 +21,7 @@ import {
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { FormattedTextarea } from '../../components/FormattedTextarea';
 import { HelpGuideModal } from '../../components/HelpGuideModal';
+import { TITLE_COLOR_TEXT_CLASSES, TitleColorPicker } from '../../components/TitleColorPicker';
 import { BulletinView } from '../bulletin/BulletinView';
 import { parseRawBulletin } from '../../lib/bulletinParser';
 import { sanitizeActionUrl, sanitizePlainText } from '../../lib/sanitize';
@@ -754,7 +755,9 @@ export function AdminBulletinComposer({
                     value={card.title}
                     onChange={(e) => updateCard(idx, { title: e.target.value })}
                     placeholder="Title"
-                    className="rounded-lg border border-[#E7E2DA] px-3 py-2 text-sm font-semibold sm:col-span-2"
+                    className={`rounded-lg border border-[#E7E2DA] px-3 py-2 text-sm font-semibold sm:col-span-2 ${
+                      card.titleColor ? TITLE_COLOR_TEXT_CLASSES[card.titleColor] : 'text-[#1E293B]'
+                    }`}
                   />
                   <select
                     value={card.category}
@@ -770,6 +773,11 @@ export function AdminBulletinComposer({
                     ))}
                   </select>
                 </div>
+
+                <TitleColorPicker
+                  value={card.titleColor ?? null}
+                  onChange={(nextColor) => updateCard(idx, { titleColor: nextColor })}
+                />
 
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <input

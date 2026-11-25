@@ -20,14 +20,16 @@ import {
 import { AttentionBadgesResult } from '../lib/announcementSignals';
 import { shareParishNotice } from '../lib/shareNotice';
 import { cleanAnnouncementTitle, stripFormattingMarkers } from '../lib/textFormat';
-import { ReactionSummary, ReactionTargetType } from '../types/parish';
+import { CardTitleColor, ReactionSummary, ReactionTargetType } from '../types/parish';
 import { ReactionButton } from './ReactionButton';
 import { SwipeableAnnouncementCard } from './SwipeableAnnouncementCard';
+import { TITLE_COLOR_TEXT_CLASSES } from './TitleColorPicker';
 import { UnreadDotBadge } from './UnreadDotBadge';
 
 interface CollapsibleAnnouncementCardProps {
   id: string;
   title: string;
+  titleColor?: CardTitleColor | null;
   previewText: string;
   categoryLabel: string;
   dateTimeLabel?: string | null;
@@ -131,6 +133,7 @@ function getAccentVisuals(categoryLabel: string, highlighted?: boolean) {
 export function CollapsibleAnnouncementCard({
   id,
   title,
+  titleColor,
   previewText,
   categoryLabel,
   dateTimeLabel,
@@ -289,7 +292,13 @@ export function CollapsibleAnnouncementCard({
           {/* Title (Pre-attentive bold weight when unread; slightly lighter weight once read) */}
           <h3
             className={`line-clamp-2 text-[16px] leading-snug sm:text-[17px] ${
-              isMutedRead ? 'font-semibold text-parish-ink/85' : 'font-bold text-parish-ink'
+              isMutedRead ? 'font-semibold' : 'font-bold'
+            } ${
+              titleColor && TITLE_COLOR_TEXT_CLASSES[titleColor]
+                ? TITLE_COLOR_TEXT_CLASSES[titleColor]
+                : isMutedRead
+                  ? 'text-parish-ink/85'
+                  : 'text-parish-ink'
             }`}
           >
             {cleanAnnouncementTitle(title) || title}

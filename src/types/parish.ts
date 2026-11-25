@@ -44,10 +44,13 @@ export interface ActionAttachment {
   mimeType?: string | null;
 }
 
+export type CardTitleColor = 'navy' | 'crimson' | 'emerald' | 'gold' | 'purple';
+
 export interface AnnouncementCard {
   id: string;
   order: number;
   title: string;
+  titleColor?: CardTitleColor | null;
   category: AnnouncementCategory;
   dateTimeLabel?: string | null;
   locationLabel?: string | null;
@@ -288,6 +291,7 @@ export interface SpecialNoticeStructuredBlocks {
   locations?: NoticeLocationItem[];
   eventDateLabel?: string | null;
   locationLabel?: string | null;
+  titleColor?: CardTitleColor | null;
 }
 
 export interface SpecialAnnouncement {

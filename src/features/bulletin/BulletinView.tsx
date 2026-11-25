@@ -512,6 +512,7 @@ export function BulletinView({
                 key={`spotlight-bulletin-${card.id}`}
                 id={`spotlight-${card.id}`}
                 title={card.title}
+                titleColor={card.titleColor}
                 previewText={card.body}
                 categoryLabel={card.category}
                 dateTimeLabel={card.dateTimeLabel}
@@ -633,6 +634,7 @@ export function BulletinView({
                 key={`spotlight-special-${notice.id}`}
                 id={`spotlight-${notice.id}`}
                 title={notice.title}
+                titleColor={notice.structured_blocks?.titleColor}
                 previewText={previewText}
                 categoryLabel={notice.category_badge ?? 'Vicar Note'}
                 featuredLabel={notice.is_pinned ? 'Pinned' : undefined}
@@ -1032,6 +1034,7 @@ export function BulletinView({
                 key={card.id}
                 id={card.id}
                 title={card.title}
+                titleColor={card.titleColor}
                 previewText={card.body}
                 categoryLabel={card.category}
                 dateTimeLabel={card.dateTimeLabel}
@@ -1181,6 +1184,7 @@ export function BulletinView({
                     key={card.id}
                     id={card.id}
                     title={card.title}
+                    titleColor={card.titleColor}
                     previewText={card.body}
                     categoryLabel={card.category}
                     dateTimeLabel={card.dateTimeLabel}
