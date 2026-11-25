@@ -58,6 +58,7 @@ export function App() {
     return 'bulletin';
   });
   const [parishSegment, setParishSegment] = useState<ParishSegment>('info');
+  const [bulletinResetTick, setBulletinResetTick] = useState(0);
   const [passwordRecoveryPending, setPasswordRecoveryPending] = useState<boolean>(
     () => initialAuthCallbackState.isRecovery
   );
@@ -156,6 +157,9 @@ export function App() {
   }, [activeTab, passwordRecoveryPending]);
 
   const navigate = (tab: AppTab) => {
+    if (tab === 'bulletin') {
+      setBulletinResetTick((n) => n + 1);
+    }
     if (tab !== 'admin') {
       setPasswordRecoveryPending(false);
     }
@@ -290,6 +294,7 @@ export function App() {
             specialAnnouncements={specialAnnouncements}
             ministryUpdates={ministryUpdates}
             regularSchedules={regularSchedules}
+            resetSignal={bulletinResetTick}
           />
         )}
 

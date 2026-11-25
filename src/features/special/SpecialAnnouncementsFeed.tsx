@@ -14,6 +14,7 @@ interface SpecialAnnouncementsFeedProps {
   onToggleReaction: (targetType: ReactionTargetType, targetId: string) => void;
   isUnread: (key: string) => boolean;
   onMarkRead: (key: string) => void;
+  onCardInteract?: () => void;
 }
 
 export function SpecialAnnouncementsFeed({
@@ -22,6 +23,7 @@ export function SpecialAnnouncementsFeed({
   onToggleReaction,
   isUnread,
   onMarkRead,
+  onCardInteract,
 }: SpecialAnnouncementsFeedProps) {
   const [lightbox, setLightbox] = useState<{
     url: string;
@@ -76,6 +78,7 @@ export function SpecialAnnouncementsFeed({
 
   const toggleCard = useCallback(
     (itemId: string) => {
+      onCardInteract?.();
       const readKey = `special:${itemId}`;
       const nextExpanded = !expandedKeys.has(readKey);
       setExpandedKeys((prev) => {
@@ -88,10 +91,11 @@ export function SpecialAnnouncementsFeed({
         releaseDeferred(readKey);
       }
     },
-    [expandedKeys, releaseDeferred]
+    [expandedKeys, onCardInteract, releaseDeferred]
   );
 
   const handleToggleAll = useCallback(() => {
+    onCardInteract?.();
     const visibleItems = showReadSection ? prioritizedItems : unreadItems;
     const targetKeys = visibleItems.map(getReadKey);
     const allExpanded = targetKeys.length > 0 && targetKeys.every((k) => expandedKeys.has(k));

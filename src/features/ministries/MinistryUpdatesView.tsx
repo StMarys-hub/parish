@@ -24,6 +24,7 @@ interface MinistryUpdatesViewProps {
   onMarkRead: (key: string) => void;
   onMarkAllRead: (keys: string[]) => void;
   onResetAllRead?: () => void;
+  onCardInteract?: () => void;
 }
 
 export function MinistryUpdatesView({
@@ -34,6 +35,7 @@ export function MinistryUpdatesView({
   onMarkRead,
   onMarkAllRead,
   onResetAllRead,
+  onCardInteract,
 }: MinistryUpdatesViewProps) {
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
   const [deferredKeys, setDeferredKeys] = useState<Set<string>>(() => new Set());
@@ -76,6 +78,7 @@ export function MinistryUpdatesView({
   const allExpanded = updates.every((u) => expandedKeys.has(`ministry:${u.id}`));
 
   const toggleExpandAll = () => {
+    onCardInteract?.();
     if (allExpanded) {
       setExpandedKeys(new Set());
       setDeferredKeys(new Set());
@@ -88,6 +91,7 @@ export function MinistryUpdatesView({
   };
 
   const toggleItem = (readKey: string) => {
+    onCardInteract?.();
     if (expandedKeys.has(readKey)) {
       setExpandedKeys((prev) => {
         const next = new Set(prev);

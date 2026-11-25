@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
   CheckCheck,
@@ -14,6 +14,7 @@ import {
   MapPin,
   RotateCcw,
   Search,
+  X,
 } from 'lucide-react';
 import { CalendarActionMenu } from '../../components/CalendarActionMenu';
 import { CollapsibleAnnouncementCard } from '../../components/CollapsibleAnnouncementCard';
@@ -21,6 +22,7 @@ import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { FlyerLightbox } from '../../components/FlyerLightbox';
 import { FormattedText } from '../../components/FormattedText';
 import { ScrollablePillBar } from '../../components/ScrollablePillBar';
+import { SpecialNoticeBody } from '../../components/SpecialNoticeBody';
 import { PHASE_FLAGS } from '../../config/features';
 import { computeAttentionBadges } from '../../lib/announcementSignals';
 import { findNextParishService } from '../../lib/nextServiceHelper';
@@ -57,6 +59,7 @@ interface BulletinViewProps {
   ministryUpdates?: MinistryUpdate[];
   regularSchedules?: RegularScheduleItem[];
   isPreview?: boolean;
+  resetSignal?: number;
 }
 
 const ARCHIVE_LABELS = ['Current', 'Last Week', '2 Wks Ago', '3 Wks Ago'] as const;
@@ -96,6 +99,7 @@ export function BulletinView({
   ministryUpdates = [],
   regularSchedules = [],
   isPreview = false,
+  resetSignal = 0,
 }: BulletinViewProps) {
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<
@@ -107,6 +111,7 @@ export function BulletinView({
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeSearchHit, setActiveSearchHit] = useState<SearchHit | null>(null);
   const [lightboxFlyer, setLightboxFlyer] = useState<{
     title: string;
     url: string;
@@ -220,7 +225,47 @@ export function BulletinView({
     visibleAnnouncements.length > 0 &&
     visibleAnnouncements.every((c) => expandedKeys.has(`bulletin:${c.id}`));
 
+  const dismissSearchSpotlight = useCallback(
+    (options?: { resetCategory?: boolean; scrollToWeekly?: boolean }) => {
+      setActiveSearchHit((prev) => {
+        if (!prev) return null;
+        return null;
+      });
+      setSelectedWeekIndex(0);
+      setWeeklyExpanded(true);
+      if (options?.resetCategory) {
+        setSelectedCategory('All');
+      }
+      if (options?.scrollToWeekly) {
+        window.setTimeout(() => {
+          document
+            .getElementById('weekly-announcements-section')
+            ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 60);
+      }
+    },
+    []
+  );
+
+  const handleOtherInteract = useCallback(() => {
+    if (!activeSearchHit) return;
+    dismissSearchSpotlight({ resetCategory: false, scrollToWeekly: false });
+  }, [activeSearchHit, dismissSearchSpotlight]);
+
+  useEffect(() => {
+    if (resetSignal <= 0) return;
+    setActiveSearchHit(null);
+    setSearchOpen(false);
+    setSearchQuery('');
+    setSelectedWeekIndex(0);
+    setSelectedCategory('All');
+    setWeeklyExpanded(true);
+  }, [resetSignal]);
+
   const toggleCardExpand = (readKey: string) => {
+    if (activeSearchHit) {
+      dismissSearchSpotlight({ resetCategory: false, scrollToWeekly: false });
+    }
     const isCurrentlyOpen = expandedKeys.has(readKey);
     if (isCurrentlyOpen) {
       // Collapse: commit read state and allow smart sort to move to Read section cleanly
@@ -357,6 +402,7 @@ export function BulletinView({
                   aria-label="Bulletin week selector"
                   value={selectedWeekIndex}
                   onChange={(e) => {
+                    setActiveSearchHit(null);
                     setSelectedWeekIndex(Number(e.target.value));
                     setSelectedCategory('All');
                     setExpandedKeys(new Set());
@@ -425,23 +471,347 @@ export function BulletinView({
           onSelectHit={(hit: SearchHit) => {
             setSearchOpen(false);
             setSearchQuery('');
-            if (hit.kind === 'ministry') {
-              setSelectedCategory('Ministry');
-              return;
-            }
-            if (typeof hit.weekIndex === 'number') {
-              setSelectedWeekIndex(hit.weekIndex);
-            }
-            if (hit.kind === 'bulletin' && hit.announcementId) {
-              setSelectedCategory('All');
-              setWeeklyExpanded(true);
-              setExpandedKeys((prev) => new Set(prev).add(`bulletin:${hit.announcementId}`));
-            } else if (hit.kind === 'schedule') {
-              setScheduleExpanded(true);
-            }
+            setActiveSearchHit(hit);
+            window.setTimeout(() => {
+              document
+                .getElementById('search-result-spotlight')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 40);
           }}
         />
       )}
+
+      {/* Search Result Spotlight Card — opens directly on top; collapsing or tapping another card/tab focuses Current Week */}
+      {activeSearchHit && (() => {
+        const closeAndFocusCurrentWeek = (markReadKey?: string) => {
+          if (markReadKey) markRead(markReadKey);
+          dismissSearchSpotlight({ resetCategory: true, scrollToWeekly: true });
+        };
+
+        let spotlightCard: ReactNode = null;
+
+        if (activeSearchHit.kind === 'bulletin' && activeSearchHit.announcementId) {
+          const hitBulletin = bulletins[activeSearchHit.weekIndex ?? 0] ?? bulletins[0];
+          const card = hitBulletin?.announcements.find(
+            (a) => a.id === activeSearchHit.announcementId
+          );
+          if (hitBulletin && card) {
+            const readKey = `bulletin:${card.id}`;
+            const unread = PHASE_FLAGS.unreadIndicators && isUnread(readKey);
+            const badges = computeAttentionBadges({
+              postedAtIso: hitBulletin.published_at || hitBulletin.updated_at,
+              dateTimeLabel: card.dateTimeLabel,
+              title: card.title,
+              body: card.body,
+              actions: card.actions,
+            });
+            spotlightCard = (
+              <CollapsibleAnnouncementCard
+                key={`spotlight-bulletin-${card.id}`}
+                id={`spotlight-${card.id}`}
+                title={card.title}
+                previewText={card.body}
+                categoryLabel={card.category}
+                dateTimeLabel={card.dateTimeLabel}
+                locationLabel={card.locationLabel}
+                highlighted={true}
+                isExpanded={true}
+                onToggle={() => closeAndFocusCurrentWeek(readKey)}
+                unread={unread}
+                onDwellMarkRead={() => markRead(readKey)}
+                canMoveToRead={false}
+                badges={badges}
+                reactionTargetType={PHASE_FLAGS.reactions ? 'bulletin' : undefined}
+                reactionSummary={reactions[reactionKey('bulletin', card.id)]}
+                onToggleReaction={(t, id) => {
+                  markRead(readKey);
+                  handleToggleReaction(t, id);
+                }}
+              >
+                {(card.dateTimeLabel || card.locationLabel) && (
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {card.dateTimeLabel && (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-parish-canvas px-2.5 py-1 text-xs font-medium text-parish-navy">
+                        <Calendar className="h-3.5 w-3.5 text-parish-gold" />
+                        {card.dateTimeLabel}
+                      </span>
+                    )}
+                    {card.locationLabel && (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-parish-canvas px-2.5 py-1 text-xs font-medium text-parish-muted">
+                        <MapPin className="h-3.5 w-3.5 text-parish-navy" />
+                        {card.locationLabel}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <p className="parish-readable-body whitespace-pre-line text-base leading-[1.6] text-parish-ink">
+                  <FormattedText text={card.body} />
+                </p>
+
+                {card.dateTimeLabel && (
+                  <div className="mt-3">
+                    <CalendarActionMenu
+                      event={{
+                        title: card.title,
+                        description: card.body,
+                        dateTimeLabel: card.dateTimeLabel,
+                        location: card.locationLabel,
+                      }}
+                    />
+                  </div>
+                )}
+
+                {card.actions.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {card.actions.map((action, idx) => {
+                      const safeUrl = sanitizeActionUrl(action.url);
+                      if (!safeUrl) return null;
+                      if (action.kind === 'flyer') {
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() =>
+                              setLightboxFlyer({
+                                title: action.label || card.title,
+                                url: safeUrl,
+                                mimeType: action.mimeType,
+                              })
+                            }
+                            className="inline-flex items-center gap-2 rounded-xl border border-parish-navy/20 bg-parish-navy/5 px-3.5 py-2 text-sm font-semibold text-parish-navy hover:bg-parish-navy/10"
+                          >
+                            {getActionIcon(action.kind)}
+                            {action.label}
+                          </button>
+                        );
+                      }
+                      return (
+                        <a
+                          key={idx}
+                          href={safeUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 rounded-xl bg-parish-navy px-3.5 py-2 text-sm font-semibold text-white shadow-2xs hover:bg-parish-navy-dark"
+                        >
+                          {getActionIcon(action.kind)}
+                          {action.label}
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+              </CollapsibleAnnouncementCard>
+            );
+          }
+        } else if (activeSearchHit.kind === 'special' && activeSearchHit.specialId) {
+          const notice = specialAnnouncements.find((s) => s.id === activeSearchHit.specialId);
+          if (notice) {
+            const readKey = `special:${notice.id}`;
+            const unread = PHASE_FLAGS.unreadIndicators && isUnread(readKey);
+            const hasLink = Boolean(
+              notice.web_url ||
+                notice.maps_url ||
+                (notice.structured_blocks?.mediaLinks?.length ?? 0) > 0 ||
+                (notice.structured_blocks?.externalLinks?.length ?? 0) > 0
+            );
+            const hasFlyer = Boolean(notice.flyer_url && sanitizeActionUrl(notice.flyer_url));
+            const badges = computeAttentionBadges({
+              postedAtIso: notice.published_at || notice.created_at,
+              dateTimeLabel: notice.structured_blocks?.eventDateLabel ?? notice.event_date_label,
+              title: notice.title,
+              body: notice.summary_preview || notice.description,
+              hasExplicitFlyer: hasFlyer,
+              hasExplicitLink: hasLink,
+            });
+            const previewText = (notice.summary_preview || notice.description || '')
+              .replace(/\s+/g, ' ')
+              .trim();
+            const firstLoc = notice.structured_blocks?.locations?.[0]?.label ?? notice.location_label;
+            spotlightCard = (
+              <CollapsibleAnnouncementCard
+                key={`spotlight-special-${notice.id}`}
+                id={`spotlight-${notice.id}`}
+                title={notice.title}
+                previewText={previewText}
+                categoryLabel={notice.category_badge ?? 'Vicar Note'}
+                featuredLabel={notice.is_pinned ? 'Pinned' : undefined}
+                dateTimeLabel={notice.structured_blocks?.eventDateLabel ?? notice.event_date_label}
+                locationLabel={firstLoc}
+                highlighted={true}
+                isExpanded={true}
+                onToggle={() => closeAndFocusCurrentWeek(readKey)}
+                unread={unread}
+                onDwellMarkRead={() => markRead(readKey)}
+                canMoveToRead={false}
+                badges={badges}
+                reactionTargetType={PHASE_FLAGS.reactions ? 'special' : undefined}
+                reactionSummary={reactions[reactionKey('special', notice.id)]}
+                onToggleReaction={(t, id) => {
+                  markRead(readKey);
+                  handleToggleReaction(t, id);
+                }}
+              >
+                <SpecialNoticeBody
+                  notice={notice}
+                  onOpenFlyer={(url, title) =>
+                    setLightboxFlyer({ url, title, mimeType: notice.flyer_mime_type })
+                  }
+                />
+              </CollapsibleAnnouncementCard>
+            );
+          }
+        } else if (activeSearchHit.kind === 'ministry' && activeSearchHit.ministryId) {
+          const item = ministryUpdates.find((m) => m.id === activeSearchHit.ministryId);
+          if (item) {
+            const readKey = `ministry:${item.id}`;
+            const unread = PHASE_FLAGS.unreadIndicators && isUnread(readKey);
+            const safeUrl = item.action_url ? sanitizeActionUrl(item.action_url) : null;
+            const badges = computeAttentionBadges({
+              postedAtIso: item.updated_at || item.created_at,
+              dateTimeLabel: item.event_date_label,
+              title: item.title,
+              body: item.body,
+              hasExplicitLink: Boolean(safeUrl),
+            });
+            spotlightCard = (
+              <CollapsibleAnnouncementCard
+                key={`spotlight-ministry-${item.id}`}
+                id={`spotlight-${item.id}`}
+                title={item.title}
+                previewText={item.body}
+                categoryLabel={item.ministry_name}
+                featuredLabel={item.week_label}
+                dateTimeLabel={item.event_date_label}
+                locationLabel={item.location_label}
+                highlighted={true}
+                isExpanded={true}
+                onToggle={() => closeAndFocusCurrentWeek(readKey)}
+                unread={unread}
+                onDwellMarkRead={() => markRead(readKey)}
+                canMoveToRead={false}
+                badges={badges}
+                reactionTargetType={PHASE_FLAGS.reactions ? 'ministry' : undefined}
+                reactionSummary={reactions[reactionKey('ministry', item.id)]}
+                onToggleReaction={(t, id) => {
+                  markRead(readKey);
+                  handleToggleReaction(t, id);
+                }}
+              >
+                {(item.event_date_label || item.location_label) && (
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {item.event_date_label && (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-parish-canvas px-2.5 py-1 text-xs font-medium text-parish-navy">
+                        <Calendar className="h-3.5 w-3.5 text-parish-gold" />
+                        {item.event_date_label}
+                      </span>
+                    )}
+                    {item.location_label && (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-parish-canvas px-2.5 py-1 text-xs font-medium text-parish-muted">
+                        <MapPin className="h-3.5 w-3.5 text-parish-navy" />
+                        {item.location_label}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <p className="parish-readable-body whitespace-pre-line text-base leading-[1.6] text-parish-ink">
+                  <FormattedText text={item.body} />
+                </p>
+                {safeUrl && (
+                  <div className="mt-3">
+                    <a
+                      href={safeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-parish-navy px-3.5 py-2 text-xs font-semibold text-white hover:bg-parish-navy-dark"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      {item.action_label || 'Open Link'}
+                    </a>
+                  </div>
+                )}
+              </CollapsibleAnnouncementCard>
+            );
+          }
+        } else if (activeSearchHit.kind === 'schedule' && activeSearchHit.scheduleDate) {
+          const hitBulletin = bulletins[activeSearchHit.weekIndex ?? 0] ?? bulletins[0];
+          const day = hitBulletin?.daily_schedule.find(
+            (d) => d.date === activeSearchHit.scheduleDate
+          );
+          if (day) {
+            const previewText = day.items
+              .map((it) => `${it.time} ${it.title}`.trim())
+              .join(' • ');
+            spotlightCard = (
+              <CollapsibleAnnouncementCard
+                key={`spotlight-schedule-${day.date}`}
+                id={`spotlight-schedule-${day.date}`}
+                title={`${day.dayLabel} (${formatShortDate(day.date)})${day.feastNote ? ` — ${day.feastNote}` : ''}`}
+                previewText={previewText}
+                categoryLabel="Liturgy & Sacraments"
+                highlighted={true}
+                isExpanded={true}
+                onToggle={() => closeAndFocusCurrentWeek()}
+                unread={false}
+                canMoveToRead={false}
+              >
+                <ul className="space-y-2">
+                  {day.items.map((svc, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm">
+                      {svc.time && (
+                        <span className="inline-flex shrink-0 items-center gap-1 pt-0.5 font-semibold text-parish-navy">
+                          <Clock className="h-3.5 w-3.5 text-parish-gold" />
+                          {svc.time}
+                        </span>
+                      )}
+                      <span className="text-parish-ink">
+                        {svc.title}
+                        {svc.celebrant && (
+                          <span className="ml-1.5 text-xs font-medium text-parish-muted">
+                            ({svc.celebrant})
+                          </span>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </CollapsibleAnnouncementCard>
+            );
+          }
+        }
+
+        if (!spotlightCard) return null;
+
+        return (
+          <section
+            id="search-result-spotlight"
+            aria-label="Selected Search Result"
+            className="scroll-mt-20 space-y-2 rounded-2xl border border-parish-navy/25 bg-parish-navy/[0.03] p-2.5 shadow-xs"
+          >
+            <div className="flex items-center justify-between gap-2 px-1">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <Search className="h-3.5 w-3.5 shrink-0 text-parish-navy" aria-hidden="true" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-parish-navy">
+                  Search Result
+                </span>
+                <span className="truncate rounded-full border border-parish-border bg-white px-2 py-0.5 text-[10px] font-semibold text-parish-muted">
+                  {activeSearchHit.badge}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => closeAndFocusCurrentWeek()}
+                aria-label="Close search result and return to current week announcements"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-parish-border bg-white px-2.5 py-0.5 text-[11px] font-semibold text-parish-navy hover:bg-parish-canvas"
+              >
+                <X className="h-3 w-3" aria-hidden="true" />
+                Close
+              </button>
+            </div>
+            {spotlightCard}
+          </section>
+        );
+      })()}
 
       {/* Standalone Vicar / Special Announcements (Highlighted immediately below slim header) */}
       {PHASE_FLAGS.specialAnnouncements && specialAnnouncements.length > 0 && (
@@ -452,6 +822,7 @@ export function BulletinView({
             onToggleReaction={handleToggleReaction}
             isUnread={isUnread}
             onMarkRead={markRead}
+            onCardInteract={handleOtherInteract}
           />
         </ErrorBoundary>
       )}
@@ -462,7 +833,12 @@ export function BulletinView({
           type="button"
           role="tab"
           aria-selected={selectedCategory === 'All'}
-          onClick={() => setSelectedCategory('All')}
+          onClick={() => {
+            if (activeSearchHit) {
+              dismissSearchSpotlight({ resetCategory: false, scrollToWeekly: false });
+            }
+            setSelectedCategory('All');
+          }}
           className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
             selectedCategory === 'All'
               ? 'bg-parish-navy text-white'
@@ -483,7 +859,12 @@ export function BulletinView({
             type="button"
             role="tab"
             aria-selected={selectedCategory === 'Ministry'}
-            onClick={() => setSelectedCategory('Ministry')}
+            onClick={() => {
+              if (activeSearchHit) {
+                dismissSearchSpotlight({ resetCategory: false, scrollToWeekly: false });
+              }
+              setSelectedCategory('Ministry');
+            }}
             className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
               selectedCategory === 'Ministry'
                 ? 'bg-parish-navy text-white'
@@ -510,7 +891,12 @@ export function BulletinView({
               type="button"
               role="tab"
               aria-selected={selectedCategory === cat}
-              onClick={() => setSelectedCategory(cat)}
+              onClick={() => {
+                if (activeSearchHit) {
+                  dismissSearchSpotlight({ resetCategory: false, scrollToWeekly: false });
+                }
+                setSelectedCategory(cat);
+              }}
               className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                 selectedCategory === cat
                   ? 'bg-parish-navy text-white'
@@ -548,16 +934,26 @@ export function BulletinView({
             onMarkRead={markRead}
             onMarkAllRead={markManyRead}
             onResetAllRead={resetAllRead}
+            onCardInteract={handleOtherInteract}
           />
         </ErrorBoundary>
       ) : (
-        <section className="space-y-2" aria-label="Weekly Announcements">
+        <section
+          id="weekly-announcements-section"
+          className="scroll-mt-20 space-y-2"
+          aria-label="Weekly Announcements"
+        >
           {/* Collapsible Weekly Announcements Master Header (Flat, clean hierarchy without nested outer box) */}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
               aria-expanded={weeklyExpanded}
-              onClick={() => setWeeklyExpanded((v) => !v)}
+              onClick={() => {
+                if (activeSearchHit) {
+                  dismissSearchSpotlight({ resetCategory: false, scrollToWeekly: false });
+                }
+                setWeeklyExpanded((v) => !v);
+              }}
               className="group flex min-w-0 flex-1 items-center gap-2 rounded-xl bg-white/80 px-2.5 py-1.5 text-left shadow-2xs ring-1 ring-parish-border/70 transition-all hover:bg-white active:scale-[0.99]"
             >
               <Calendar className="h-4 w-4 shrink-0 text-parish-navy" aria-hidden="true" />
@@ -880,7 +1276,12 @@ export function BulletinView({
         >
           <button
             type="button"
-            onClick={() => setScheduleExpanded((v) => !v)}
+            onClick={() => {
+              if (activeSearchHit) {
+                dismissSearchSpotlight({ resetCategory: false, scrollToWeekly: false });
+              }
+              setScheduleExpanded((v) => !v);
+            }}
             aria-expanded={scheduleExpanded}
             className="flex w-full items-center justify-between px-4 py-3.5 text-left hover:bg-parish-canvas/70"
           >

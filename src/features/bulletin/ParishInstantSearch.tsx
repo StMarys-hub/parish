@@ -11,6 +11,9 @@ export interface SearchHit {
   badge: string;
   weekIndex?: number;
   announcementId?: string;
+  specialId?: string;
+  ministryId?: string;
+  scheduleDate?: string;
 }
 
 interface ParishInstantSearchProps {
@@ -46,6 +49,7 @@ export function ParishInstantSearch({
           title: notice.title,
           snippet: stripFormattingMarkers(notice.summary_preview || notice.description).slice(0, 120),
           badge: notice.category_badge ?? 'Special Notice',
+          specialId: notice.id,
         });
       }
     }
@@ -81,6 +85,7 @@ export function ParishInstantSearch({
             snippet: itemsText.slice(0, 120),
             badge: `Schedule • ${weekLabel}`,
             weekIndex: weekIdx,
+            scheduleDate: day.date,
           });
         }
       }
@@ -95,6 +100,7 @@ export function ParishInstantSearch({
           title: m.title,
           snippet: stripFormattingMarkers(m.body).slice(0, 120),
           badge: `Ministry • ${m.ministry_name}`,
+          ministryId: m.id,
         });
       }
     }
