@@ -33,7 +33,7 @@ export function buildShareNoticeText(input: ShareNoticeInput): string {
 export async function shareParishNotice(
   input: ShareNoticeInput
 ): Promise<'shared' | 'copied' | 'cancelled'> {
-  const url = typeof window !== 'undefined' ? window.location.origin : 'https://parish-7tg.pages.dev';
+  const url = typeof window !== 'undefined' ? window.location.origin : 'https://app.stmarysyroclt.org';
   const text = buildShareNoticeText(input);
 
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
