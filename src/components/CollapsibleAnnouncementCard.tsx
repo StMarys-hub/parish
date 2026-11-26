@@ -15,12 +15,19 @@ import {
   Pin,
   Share2,
   ShieldCheck,
+  Star,
   Users,
 } from 'lucide-react';
 import { AttentionBadgesResult } from '../lib/announcementSignals';
 import { shareParishNotice } from '../lib/shareNotice';
 import { cleanAnnouncementTitle, stripFormattingMarkers } from '../lib/textFormat';
-import { CardTitleColor, ReactionSummary, ReactionTargetType } from '../types/parish';
+import {
+  AnnouncementPriority,
+  CardTitleColor,
+  normalizeAnnouncementPriority,
+  ReactionSummary,
+  ReactionTargetType,
+} from '../types/parish';
 import { ReactionButton } from './ReactionButton';
 import { SwipeableAnnouncementCard } from './SwipeableAnnouncementCard';
 import { TITLE_COLOR_TEXT_CLASSES } from './TitleColorPicker';
@@ -30,6 +37,7 @@ interface CollapsibleAnnouncementCardProps {
   id: string;
   title: string;
   titleColor?: CardTitleColor | null;
+  priority?: AnnouncementPriority | null;
   previewText: string;
   categoryLabel: string;
   dateTimeLabel?: string | null;
@@ -134,6 +142,7 @@ export function CollapsibleAnnouncementCard({
   id,
   title,
   titleColor,
+  priority,
   previewText,
   categoryLabel,
   dateTimeLabel,
@@ -203,18 +212,62 @@ export function CollapsibleAnnouncementCard({
     }
   };
 
-  const isMutedRead = !unread && !highlighted && !isExpanded;
+  const effectivePriority = normalizeAnnouncementPriority(priority);
+  const isUrgentTier = effectivePriority === 'urgent';
+  const isImportantTier = effectivePriority === 'important';
+  const isMutedRead = !unread && !highlighted && !isExpanded && effectivePriority === 'normal';
   const showUnreadOrNew = unread || dismissingBadge;
+
+  const articleToneClass = isUrgentTier
+    ? unread
+      ? 'border-rose-300 ring-1 ring-rose-200/90 shadow-sm'
+      : 'border-rose-200/90 ring-1 ring-rose-100/70'
+    : isImportantTier
+      ? unread
+        ? 'border-parish-gold/65 ring-1 ring-parish-gold/30 shadow-xs'
+        : 'border-parish-gold/45 ring-1 ring-parish-gold/15'
+      : highlighted
+        ? 'border-parish-gold/55 ring-1 ring-parish-gold/25'
+        : unread
+          ? 'border-rose-200/90 ring-1 ring-rose-100'
+          : 'border-parish-border/80';
+
+  const headerToneClass = isUrgentTier
+    ? unread
+      ? 'bg-rose-50/70 hover:bg-rose-50/95'
+      : 'bg-rose-50/35 hover:bg-rose-50/60'
+    : isImportantTier
+      ? unread
+        ? 'bg-parish-gold-soft/55 hover:bg-parish-gold-soft/75'
+        : 'bg-parish-gold-soft/25 hover:bg-parish-gold-soft/45'
+      : highlighted && !isExpanded
+        ? 'bg-parish-gold-soft/30 hover:bg-parish-gold-soft/45'
+        : isMutedRead
+          ? 'bg-parish-canvas/25 hover:bg-parish-canvas/55'
+          : 'hover:bg-parish-canvas/55';
+
+  const resolvedBarClass = isUrgentTier
+    ? 'w-1.5 bg-rose-600'
+    : isImportantTier
+      ? 'w-1 bg-parish-gold'
+      : `w-1 ${barClass}`;
+
+  const resolvedTitleColorClass =
+    titleColor && TITLE_COLOR_TEXT_CLASSES[titleColor]
+      ? TITLE_COLOR_TEXT_CLASSES[titleColor]
+      : isUrgentTier
+        ? 'text-rose-800'
+        : isImportantTier
+          ? 'text-parish-navy'
+          : isMutedRead
+            ? 'text-parish-ink/85'
+            : 'text-parish-ink';
+
+  const showUrgentBadge = isUrgentTier && categoryLabel.toLowerCase() !== 'urgent';
 
   const cardElement = (
     <article
-      className={`overflow-hidden rounded-2xl border bg-white shadow-2xs transition-all hover:shadow-sm ${
-        highlighted
-          ? 'border-parish-gold/55 ring-1 ring-parish-gold/25'
-          : unread
-            ? 'border-rose-200/90 ring-1 ring-rose-100'
-            : 'border-parish-border/80'
-      }`}
+      className={`overflow-hidden rounded-2xl border bg-white shadow-2xs transition-all hover:shadow-sm ${articleToneClass}`}
     >
       {/* Clickable Summary Header (Minimum 56px touch target, 12px horizontal padding, zero scroll jumps) */}
       <button
@@ -222,30 +275,34 @@ export function CollapsibleAnnouncementCard({
         aria-expanded={isExpanded}
         onClick={onToggle}
         onKeyDown={handleHeaderKeyDown}
-        className={`flex min-h-[56px] w-full items-stretch gap-2.5 px-3 py-3 text-left transition-all active:scale-[0.99] ${
-          highlighted && !isExpanded
-            ? 'bg-parish-gold-soft/30 hover:bg-parish-gold-soft/45'
-            : isMutedRead
-              ? 'bg-parish-canvas/25 hover:bg-parish-canvas/55'
-              : 'hover:bg-parish-canvas/55'
-        }`}
+        className={`flex min-h-[56px] w-full items-stretch gap-2.5 px-3 py-3 text-left transition-all active:scale-[0.99] ${headerToneClass}`}
       >
-        {/* Pre-Attentive Left Accent Bar (de-emphasized slightly when read) */}
+        {/* Pre-Attentive Left Accent Bar (4px+ crimson for Urgent, gold for Important, category bar for Normal) */}
         <span
-          className={`w-1 shrink-0 rounded-full transition-opacity duration-300 ${barClass} ${
+          className={`shrink-0 rounded-full transition-opacity duration-300 ${resolvedBarClass} ${
             isMutedRead ? 'opacity-40' : 'opacity-100'
           }`}
           aria-hidden="true"
         />
 
-        {/* Category / Ministry Icon */}
+        {/* Category / Priority Icon */}
         <span
-          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-opacity duration-300 ${iconWrapClass} ${
-            isMutedRead ? 'opacity-70' : 'opacity-100'
-          }`}
+          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-opacity duration-300 ${
+            isUrgentTier
+              ? 'bg-rose-100 text-rose-700'
+              : isImportantTier
+                ? 'bg-parish-gold-soft text-parish-gold-ink'
+                : iconWrapClass
+          } ${isMutedRead ? 'opacity-70' : 'opacity-100'}`}
           aria-hidden="true"
         >
-          <Icon className="h-4 w-4" />
+          {isUrgentTier ? (
+            <AlertTriangle className="h-4 w-4" />
+          ) : isImportantTier ? (
+            <Star className="h-4 w-4 fill-current" />
+          ) : (
+            <Icon className="h-4 w-4" />
+          )}
         </span>
 
         {/* Middle Content: Micro-Badges -> Title -> 1-line Snippet & Meta */}
@@ -258,6 +315,18 @@ export function CollapsibleAnnouncementCard({
                 dismissing={dismissingBadge}
                 showNewPill={true}
               />
+            )}
+            {showUrgentBadge && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-2xs">
+                <AlertTriangle className="h-2.5 w-2.5" aria-hidden="true" />
+                Urgent
+              </span>
+            )}
+            {isImportantTier && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-parish-gold/50 bg-parish-gold-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-parish-gold-ink">
+                <Star className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
+                Important
+              </span>
             )}
             {(isPinned || featuredLabel?.toLowerCase() === 'pinned') && (
               <span
@@ -277,7 +346,7 @@ export function CollapsibleAnnouncementCard({
             <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${pillClass}`}>
               {categoryLabel}
             </span>
-            {badges?.urgencyLabel && (
+            {badges?.urgencyLabel && !isUrgentTier && (
               <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-900">
                 {badges.urgencyLabel}
               </span>
@@ -289,17 +358,11 @@ export function CollapsibleAnnouncementCard({
             )}
           </div>
 
-          {/* Title (Pre-attentive bold weight when unread; slightly lighter weight once read) */}
+          {/* Title (Priority-weighted color & bold hierarchy; explicit titleColor overrides if chosen) */}
           <h3
             className={`line-clamp-2 text-[16px] leading-snug sm:text-[17px] ${
               isMutedRead ? 'font-semibold' : 'font-bold'
-            } ${
-              titleColor && TITLE_COLOR_TEXT_CLASSES[titleColor]
-                ? TITLE_COLOR_TEXT_CLASSES[titleColor]
-                : isMutedRead
-                  ? 'text-parish-ink/85'
-                  : 'text-parish-ink'
-            }`}
+            } ${resolvedTitleColorClass}`}
           >
             {cleanAnnouncementTitle(title) || title}
           </h3>

@@ -46,11 +46,28 @@ export interface ActionAttachment {
 
 export type CardTitleColor = 'navy' | 'crimson' | 'emerald' | 'gold' | 'purple';
 
+export type AnnouncementPriority = 'normal' | 'important' | 'urgent';
+
+export function normalizeAnnouncementPriority(
+  raw: string | undefined | null
+): AnnouncementPriority {
+  if (raw === 'urgent' || raw === 'important' || raw === 'normal') return raw;
+  return 'normal';
+}
+
+export function getPriorityWeight(raw: string | undefined | null): number {
+  const p = normalizeAnnouncementPriority(raw);
+  if (p === 'urgent') return 3;
+  if (p === 'important') return 2;
+  return 1;
+}
+
 export interface AnnouncementCard {
   id: string;
   order: number;
   title: string;
   titleColor?: CardTitleColor | null;
+  priority?: AnnouncementPriority | null;
   category: AnnouncementCategory;
   dateTimeLabel?: string | null;
   locationLabel?: string | null;
@@ -292,6 +309,7 @@ export interface SpecialNoticeStructuredBlocks {
   eventDateLabel?: string | null;
   locationLabel?: string | null;
   titleColor?: CardTitleColor | null;
+  priority?: AnnouncementPriority | null;
 }
 
 export interface SpecialAnnouncement {

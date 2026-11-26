@@ -201,13 +201,16 @@ export function BulletinView({
     return sorted.filter((a) => a.category === selectedCategory);
   }, [activeBulletin, selectedCategory]);
 
+  const getCardPriority = useCallback((c: WeeklyBulletin['announcements'][number]) => c.priority, []);
+
   const { unreadItems: unreadAnnouncements, readItems: readAnnouncements } =
     useSmartAnnouncementOrder(
       visibleAnnouncements,
       (c) => `bulletin:${c.id}`,
       isUnread,
       expandedKeys,
-      deferredMoveKeys
+      deferredMoveKeys,
+      getCardPriority
     );
 
   const unreadMinistryCount = useMemo(
@@ -513,6 +516,7 @@ export function BulletinView({
                 id={`spotlight-${card.id}`}
                 title={card.title}
                 titleColor={card.titleColor}
+                priority={card.priority}
                 previewText={card.body}
                 categoryLabel={card.category}
                 dateTimeLabel={card.dateTimeLabel}
@@ -635,6 +639,7 @@ export function BulletinView({
                 id={`spotlight-${notice.id}`}
                 title={notice.title}
                 titleColor={notice.structured_blocks?.titleColor}
+                priority={notice.structured_blocks?.priority}
                 previewText={previewText}
                 categoryLabel={notice.category_badge ?? 'Vicar Note'}
                 featuredLabel={notice.is_pinned ? 'Pinned' : undefined}
@@ -1035,6 +1040,7 @@ export function BulletinView({
                 id={card.id}
                 title={card.title}
                 titleColor={card.titleColor}
+                priority={card.priority}
                 previewText={card.body}
                 categoryLabel={card.category}
                 dateTimeLabel={card.dateTimeLabel}
@@ -1185,6 +1191,7 @@ export function BulletinView({
                     id={card.id}
                     title={card.title}
                     titleColor={card.titleColor}
+                    priority={card.priority}
                     previewText={card.body}
                     categoryLabel={card.category}
                     dateTimeLabel={card.dateTimeLabel}

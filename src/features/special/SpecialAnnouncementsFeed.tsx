@@ -6,7 +6,12 @@ import { SpecialNoticeBody } from '../../components/SpecialNoticeBody';
 import { computeAttentionBadges } from '../../lib/announcementSignals';
 import { sanitizeActionUrl } from '../../lib/sanitize';
 import { useSmartAnnouncementOrder } from '../../lib/useSmartAnnouncementOrder';
-import { ReactionSummary, ReactionTargetType, SpecialAnnouncement } from '../../types/parish';
+import {
+  getPriorityWeight,
+  ReactionSummary,
+  ReactionTargetType,
+  SpecialAnnouncement,
+} from '../../types/parish';
 
 interface SpecialAnnouncementsFeedProps {
   items: SpecialAnnouncement[];
@@ -44,6 +49,10 @@ export function SpecialAnnouncementsFeed({
 
     return [...items].sort((a, b) => {
       if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
+      const prioDiff =
+        getPriorityWeight(b.structured_blocks?.priority) -
+        getPriorityWeight(a.structured_blocks?.priority);
+      if (prioDiff !== 0) return prioDiff;
       return getTimestamp(b) - getTimestamp(a);
     });
   }, [items]);
@@ -152,6 +161,7 @@ export function SpecialAnnouncementsFeed({
         id={item.id}
         title={item.title}
         titleColor={item.structured_blocks?.titleColor}
+        priority={item.structured_blocks?.priority}
         previewText={previewText}
         categoryLabel={categoryLabel}
         featuredLabel={item.is_pinned ? 'Pinned' : undefined}

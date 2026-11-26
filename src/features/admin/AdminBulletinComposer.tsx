@@ -21,6 +21,7 @@ import {
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { FormattedTextarea } from '../../components/FormattedTextarea';
 import { HelpGuideModal } from '../../components/HelpGuideModal';
+import { PrioritySelector } from '../../components/PrioritySelector';
 import { TITLE_COLOR_TEXT_CLASSES, TitleColorPicker } from '../../components/TitleColorPicker';
 import { BulletinView } from '../bulletin/BulletinView';
 import { parseRawBulletin } from '../../lib/bulletinParser';
@@ -774,10 +775,20 @@ export function AdminBulletinComposer({
                   </select>
                 </div>
 
-                <TitleColorPicker
-                  value={card.titleColor ?? null}
-                  onChange={(nextColor) => updateCard(idx, { titleColor: nextColor })}
-                />
+                <div className="space-y-1.5">
+                  <PrioritySelector
+                    value={card.priority ?? 'normal'}
+                    onChange={(nextPriority) => updateCard(idx, { priority: nextPriority })}
+                    showAlertFatigueHint={
+                      card.priority === 'urgent' &&
+                      announcements.filter((c) => c.priority === 'urgent').length > 2
+                    }
+                  />
+                  <TitleColorPicker
+                    value={card.titleColor ?? null}
+                    onChange={(nextColor) => updateCard(idx, { titleColor: nextColor })}
+                  />
+                </div>
 
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <input

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { FormattedTextarea } from '../../components/FormattedTextarea';
 import { HelpGuideModal } from '../../components/HelpGuideModal';
+import { PrioritySelector } from '../../components/PrioritySelector';
 import { SpecialNoticeBody } from '../../components/SpecialNoticeBody';
 import { TITLE_COLOR_TEXT_CLASSES, TitleColorPicker } from '../../components/TitleColorPicker';
 import { UnreadDotBadge } from '../../components/UnreadDotBadge';
@@ -33,7 +34,9 @@ import {
   upsertSpecialAnnouncement,
 } from '../../services/phase3Repository';
 import {
+  AnnouncementPriority,
   CardTitleColor,
+  normalizeAnnouncementPriority,
   SpecialAnnouncement,
   SpecialNoticeCategory,
   SpecialNoticeStructuredBlocks,
@@ -149,6 +152,7 @@ export function SpecialAnnouncementComposer({
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [title, setTitle] = useState('');
   const [titleColor, setTitleColor] = useState<CardTitleColor | null>(null);
+  const [priority, setPriority] = useState<AnnouncementPriority>('normal');
   const [categoryBadge, setCategoryBadge] = useState<SpecialNoticeCategory>('Vicar Note');
   const [summaryPreview, setSummaryPreview] = useState('');
   const [signOff, setSignOff] = useState('Rajeev Achan');
@@ -278,6 +282,7 @@ export function SpecialAnnouncementComposer({
     setRawPaste('');
     setTitle('');
     setTitleColor(null);
+    setPriority('normal');
     setCategoryBadge('Vicar Note');
     setSummaryPreview('');
     setSignOff('Rajeev Achan');
@@ -321,6 +326,7 @@ export function SpecialAnnouncementComposer({
     setRawPaste(item.raw_message || item.description || '');
     setTitle(item.title);
     setTitleColor(item.structured_blocks?.titleColor ?? null);
+    setPriority(normalizeAnnouncementPriority(item.structured_blocks?.priority));
     setCategoryBadge(item.category_badge ?? 'Vicar Note');
     setSummaryPreview(item.summary_preview || item.description.slice(0, 140));
     setSignOff(item.sign_off || 'Rajeev Achan');
@@ -375,6 +381,7 @@ export function SpecialAnnouncementComposer({
         eventDateLabel: eventDateLabel.trim() ? sanitizePlainText(eventDateLabel) : null,
         locationLabel: locationLabel.trim() ? sanitizePlainText(locationLabel) : null,
         titleColor,
+        priority,
       };
 
       const isNewPublish = !editingId;
@@ -485,7 +492,7 @@ export function SpecialAnnouncementComposer({
     category_badge: categoryBadge,
     summary_preview: summaryPreview || 'Collapsed summary line appears cleanly here without raw URLs.',
     raw_message: rawPaste,
-    structured_blocks: { ...structuredBlocks, titleColor },
+    structured_blocks: { ...structuredBlocks, titleColor, priority },
     sign_off: signOff || 'Rajeev Achan',
     description: description || rawPaste,
     event_date_label: eventDateLabel || null,
@@ -607,6 +614,16 @@ export function SpecialAnnouncementComposer({
               >
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-1.5">
+                    {priority === 'urgent' && (
+                      <span className="rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                        Urgent
+                      </span>
+                    )}
+                    {priority === 'important' && (
+                      <span className="rounded-full border border-parish-gold/50 bg-parish-gold-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-parish-gold-ink">
+                        Important
+                      </span>
+                    )}
                     <span className="rounded-full border border-parish-gold/40 bg-parish-gold-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-parish-gold-ink">
                       {previewNotice.category_badge}
                     </span>
@@ -619,7 +636,13 @@ export function SpecialAnnouncementComposer({
                   </div>
                   <h4
                     className={`text-sm font-bold ${
-                      titleColor ? TITLE_COLOR_TEXT_CLASSES[titleColor] : 'text-[#1E293B]'
+                      titleColor
+                        ? TITLE_COLOR_TEXT_CLASSES[titleColor]
+                        : priority === 'urgent'
+                          ? 'text-rose-800'
+                          : priority === 'important'
+                            ? 'text-parish-navy'
+                            : 'text-[#1E293B]'
                     }`}
                   >
                     {previewNotice.title}
@@ -659,7 +682,8 @@ export function SpecialAnnouncementComposer({
                   titleColor ? TITLE_COLOR_TEXT_CLASSES[titleColor] : 'text-[#1E293B]'
                 }`}
               />
-              <div className="mt-1.5">
+              <div className="mt-1.5 space-y-1.5">
+                <PrioritySelector value={priority} onChange={setPriority} />
                 <TitleColorPicker value={titleColor} onChange={setTitleColor} />
               </div>
             </div>
