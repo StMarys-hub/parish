@@ -1314,6 +1314,10 @@ export function AdminBulletinComposer({
               <code className="rounded bg-white px-1 py-0.5">General &amp; Parish</code>.
             </li>
             <li>
+              <strong>3-Tier Priority &amp; Title Color:</strong> Each card defaults to <strong>Normal</strong>. Tap{' '}
+              <strong>Important</strong> (gold highlight) or <strong>Urgent</strong> (crimson alert) to elevate key items to the top of unread &amp; read lists, and optionally pick a liturgical <strong>Title Color</strong>.
+            </li>
+            <li>
               <strong>Bold, Text Color &amp; Highlight:</strong> In <strong>Card Editor</strong>, select any phrase in a description and tap{' '}
               <strong>Bold</strong> (<kbd className="rounded border bg-white px-1">Ctrl+B</kbd>),{' '}
               <strong>Text Color</strong> (Parish Navy, Urgent Red, Green, Gold, Purple), or{' '}
@@ -1325,7 +1329,7 @@ export function AdminBulletinComposer({
               <strong>Add to Calendar</strong>, and <code className="rounded bg-white px-1 py-0.5">https://...</code> URLs become safe action buttons.
             </li>
             <li>
-              <strong>Scheduled Publishing:</strong> Click <strong>Publish &amp; Notify</strong> and optionally set a future date/time (e.g., Saturday 6:00 PM) to go live automatically.
+              <strong>Scheduled Publishing:</strong> Click <strong>Publish &amp; Notify</strong> and optionally set a future date/time (e.g., Saturday 6:00 PM) so the bulletin goes live on the feed automatically at that time (instant push notifications are sent only when publishing immediately).
             </li>
           </ul>
         </div>

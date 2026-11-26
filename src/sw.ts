@@ -15,12 +15,15 @@ clientsClaim();
 // Precache static Vite build assets (JS, CSS, HTML, icons)
 precacheAndRoute(self.__WB_MANIFEST);
 
-// 1. Supabase REST API GET requests: NetworkFirst with 2s timeout for weak church Wi-Fi/cellular
+// 1. Supabase public REST API GET requests: NetworkFirst with 2s timeout for weak church Wi-Fi/cellular
+//    Excludes admin/audit/reimbursement endpoints so private data is never stored in the SW cache.
 registerRoute(
   ({ url, request }) =>
     request.method === 'GET' &&
     url.hostname.endsWith('.supabase.co') &&
-    url.pathname.startsWith('/rest/v1/'),
+    url.pathname.startsWith('/rest/v1/') &&
+    !url.pathname.includes('admin_') &&
+    !url.pathname.includes('reimbursement'),
   new NetworkFirst({
     cacheName: 'parish-api-cache',
     networkTimeoutSeconds: 2,

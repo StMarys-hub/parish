@@ -66,12 +66,13 @@ export async function fetchPublishedBulletins(limit = 4): Promise<{
       .select('*')
       .eq('status', 'published')
       .order('week_start', { ascending: false })
-      .limit(limit);
+      .limit(limit + 3);
 
     if (error) throw error;
     const nowMs = Date.now();
     const rows = ((data ?? []) as WeeklyBulletin[])
       .filter((b) => !b.scheduled_publish_at || Date.parse(b.scheduled_publish_at) <= nowMs)
+      .slice(0, limit)
       .map(normalizeBulletinCategories);
     if (rows.length > 0) {
       writeCache(CACHE_KEYS.bulletins, rows);

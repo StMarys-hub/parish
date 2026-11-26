@@ -1106,7 +1106,10 @@ export function SpecialAnnouncementComposer({
               <strong className="text-[#1E293B]">Defaults, Badges &amp; Calendar:</strong> Defaults to <strong>Vicar Note</strong> (with <strong>Liturgy</strong>, <strong>Sunday Liturgy</strong>, <strong>Media &amp; Highlights</strong>, <strong>Youth &amp; Events</strong>, and <strong>Urgent</strong> options), <strong>unpinned</strong>, and <strong>Today at 7:00 PM</strong> (which enables one-tap <strong>Add to Calendar</strong> — click <em>Clear</em> if no event date is needed).
             </li>
             <li>
-              <strong className="text-[#1E293B]">Optional Push &amp; Scheduled Publishing:</strong> Check <strong>Send instant push notification</strong> only when publishing an urgent new notice, or set <strong>Schedule Publish</strong> to make a notice go live automatically at a future date/time.
+              <strong className="text-[#1E293B]">3-Tier Priority &amp; Title Color:</strong> Notices default to <strong>Normal</strong>. Choose <strong>Important</strong> (gold) or <strong>Urgent</strong> (crimson) to elevate critical notices above routine updates, and optionally set a liturgical <strong>Title Color</strong>.
+            </li>
+            <li>
+              <strong className="text-[#1E293B]">Optional Push &amp; Scheduled Publishing:</strong> Check <strong>Send instant push notification</strong> only when publishing an urgent new notice immediately, or set <strong>Schedule Publish</strong> to make a notice appear on the feed automatically at a future date/time.
             </li>
           </ul>
         </div>

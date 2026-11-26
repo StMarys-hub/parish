@@ -10,6 +10,7 @@ import {
   Users,
 } from 'lucide-react';
 import { CollapsibleAnnouncementCard } from '../../components/CollapsibleAnnouncementCard';
+import { FormattedRichBlocks } from '../../components/FormattedText';
 import { computeAttentionBadges } from '../../lib/announcementSignals';
 import { sanitizeActionUrl } from '../../lib/sanitize';
 import { useSmartAnnouncementOrder } from '../../lib/useSmartAnnouncementOrder';
@@ -185,9 +186,7 @@ export function MinistryUpdatesView({
           </div>
         )}
 
-        <p className="whitespace-pre-line text-sm leading-relaxed text-parish-ink sm:text-base">
-          {item.body}
-        </p>
+        <FormattedRichBlocks lines={[item.body]} className="text-sm sm:text-base" />
 
         {safeUrl && (
           <div className="mt-3">
