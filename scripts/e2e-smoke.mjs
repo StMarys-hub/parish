@@ -47,22 +47,23 @@ async function run() {
   // Open Instant Search and close it
   await page.getByRole('button', { name: /Search parish notices/i }).click();
   await page.getByRole('searchbox', { name: /Search parish notices/i }).waitFor({ timeout: 5000 });
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
 
   // Navigate to Schedules tab
-  await page.getByRole('button', { name: 'Schedules' }).first().click();
-  await page.getByText(/Regular Parish Schedules|Holy Qurbana/i).first().waitFor({ timeout: 5000 });
+  const mobileNav = page.getByRole('navigation', { name: 'Mobile bottom navigation' });
+  await mobileNav.getByRole('button', { name: 'Schedules', exact: true }).click();
+  await page.getByText(/Parish Schedules|Holy Qurbana/i).first().waitFor({ timeout: 5000 });
 
   // Navigate to Parish tab and verify all 3 segments
-  await page.getByRole('button', { name: 'Parish' }).first().click();
-  await page.getByRole('tab', { name: 'Church Info' }).waitFor({ timeout: 5000 });
-  await page.getByRole('tab', { name: 'Services' }).click();
+  await mobileNav.getByRole('button', { name: 'Parish', exact: true }).click();
+  await page.getByRole('tab', { name: 'Church Info', exact: true }).waitFor({ timeout: 5000 });
+  await page.getByRole('tab', { name: 'Services', exact: true }).click();
   await page.getByText(/Parish On Net/i).first().waitFor({ timeout: 5000 });
-  await page.getByRole('tab', { name: 'Settings' }).click();
+  await page.getByRole('tab', { name: 'Settings', exact: true }).click();
   await page.getByText(/Reading Text Size/i).first().waitFor({ timeout: 5000 });
 
   // Return to Bulletin tab
-  await page.getByRole('button', { name: 'Bulletin' }).first().click();
+  await mobileNav.getByRole('button', { name: 'Bulletin', exact: true }).click();
   await page.getByText(/Weekly Announcements/i).first().waitFor({ timeout: 5000 });
 
   await browser.close();
