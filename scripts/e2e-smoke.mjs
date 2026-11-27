@@ -39,6 +39,11 @@ async function run() {
   await page.getByRole('heading', { name: /St\. Mary's/i }).first().waitFor({ timeout: 10000 });
   await page.getByText(/Weekly Announcements/i).first().waitFor({ timeout: 10000 });
 
+  // Open contextual Help (?) dialog and close it
+  await page.getByRole('button', { name: /Help for this page/i }).click();
+  await page.getByRole('dialog').waitFor({ timeout: 5000 });
+  await page.getByRole('button', { name: /Close help dialog/i }).click();
+
   // Open Instant Search and close it
   await page.getByRole('button', { name: /Search parish notices/i }).click();
   await page.getByRole('searchbox', { name: /Search parish notices/i }).waitFor({ timeout: 5000 });

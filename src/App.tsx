@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react
 import { Bell, BookOpen, CalendarDays, Info } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
+import { HelpIconButton, HelpTopicId, RoleHelpModal } from './components/RoleHelpGuide';
 import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { PHASE_FLAGS } from './config/features';
 import {
@@ -59,6 +60,7 @@ export function App() {
   });
   const [parishSegment, setParishSegment] = useState<ParishSegment>('info');
   const [bulletinResetTick, setBulletinResetTick] = useState(0);
+  const [parishHelpOpen, setParishHelpOpen] = useState(false);
   const [passwordRecoveryPending, setPasswordRecoveryPending] = useState<boolean>(
     () => initialAuthCallbackState.isRecovery
   );
@@ -272,6 +274,11 @@ export function App() {
                   />
                 )}
               </button>
+              <HelpIconButton
+                compact
+                label="Help for this page"
+                onClick={() => setParishHelpOpen(true)}
+              />
             </div>
           )}
         </div>
@@ -425,6 +432,20 @@ export function App() {
       )}
 
       <PwaUpdatePrompt />
+
+      <RoleHelpModal
+        open={parishHelpOpen}
+        onClose={() => setParishHelpOpen(false)}
+        topicId={
+          (activeTab === 'schedules'
+            ? 'parishioner_schedules'
+            : activeTab === 'about'
+              ? 'parishioner_about'
+              : activeTab === 'reimbursements'
+                ? 'parishioner_reimbursements'
+                : 'parishioner_bulletin') as HelpTopicId
+        }
+      />
     </div>
   );
 }

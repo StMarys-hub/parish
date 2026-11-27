@@ -9,6 +9,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from 'lucide-react';
+import { HelpIconButton, RoleHelpModal } from '../../components/RoleHelpGuide';
 import { isSupabaseConfigured, supabase } from '../../lib/supabase';
 import {
   fetchReimbursementAccessStatus,
@@ -62,6 +63,7 @@ export function ReimbursementPortal({ onBackToParish }: ReimbursementPortalProps
   const [subTab, setSubTab] = useState<'submit' | 'tracker'>('submit');
   const [claims, setClaims] = useState<ReimbursementClaim[]>([]);
   const [loadingClaims, setLoadingClaims] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const currentUserIdRef = useRef<string | null>(null);
 
   const loadPortalData = useCallback(async (isInitialBoot = false) => {
@@ -274,13 +276,19 @@ export function ReimbursementPortal({ onBackToParish }: ReimbursementPortalProps
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={onBackToParish}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-parish-navy hover:underline"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to Parish Info
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onBackToParish}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-parish-navy hover:underline"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to Parish Info
+          </button>
+          <HelpIconButton
+            label="Reimbursement submission & tracking help"
+            onClick={() => setHelpOpen(true)}
+          />
+        </div>
 
         {signedInEmail && (
           <div className="flex gap-1.5 rounded-xl border border-parish-border bg-white p-1">
@@ -583,6 +591,11 @@ export function ReimbursementPortal({ onBackToParish }: ReimbursementPortalProps
           )}
         </>
       )}
+      <RoleHelpModal
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        topicId="parishioner_reimbursements"
+      />
     </div>
   );
 }

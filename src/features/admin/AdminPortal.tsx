@@ -10,6 +10,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
+import { HelpIconButton, HelpTopicId, RoleHelpModal } from '../../components/RoleHelpGuide';
 import { ScrollablePillBar } from '../../components/ScrollablePillBar';
 import { isSupabaseConfigured, supabase } from '../../lib/supabase';
 import {
@@ -102,6 +103,7 @@ export function AdminPortal({
   const [bulletins, setBulletins] = useState<WeeklyBulletin[]>([fallbackBulletin]);
   const [selectedBulletinIdx, setSelectedBulletinIdx] = useState(0);
   const [deletingBulletin, setDeletingBulletin] = useState(false);
+  const [adminHelpOpen, setAdminHelpOpen] = useState(false);
 
   const loadAdminState = async () => {
     setCheckingAuth(true);
@@ -495,14 +497,20 @@ export function AdminPortal({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="inline-flex items-center gap-1 rounded-lg border border-parish-border px-3 py-1.5 text-xs font-semibold text-parish-muted hover:bg-slate-50"
-        >
-          <LogOut className="h-3.5 w-3.5" />
-          {sandboxMode ? 'Exit Sandbox' : 'Sign Out'}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <HelpIconButton
+            label="Role & module help"
+            onClick={() => setAdminHelpOpen(true)}
+          />
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="inline-flex items-center gap-1 rounded-lg border border-parish-border px-3 py-1.5 text-xs font-semibold text-parish-muted hover:bg-slate-50"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            {sandboxMode ? 'Exit Sandbox' : 'Sign Out'}
+          </button>
+        </div>
       </div>
 
       {/* Admin Module Switcher */}
@@ -669,6 +677,13 @@ export function AdminPortal({
       )}
 
       {adminTab === 'audit' && <AdminAuditLogViewer isSandbox={sandboxMode} />}
+
+      <RoleHelpModal
+        open={adminHelpOpen}
+        onClose={() => setAdminHelpOpen(false)}
+        topicId={`admin_${adminTab}` as HelpTopicId}
+        adminRole={sandboxMode ? 'super_admin' : adminProfile?.role}
+      />
     </div>
   );
 }
